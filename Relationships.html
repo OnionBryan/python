@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Institutional Dynamics Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.1/math.min.js"></script>
+    <link href="https://fonts.googleapis.com/css?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; overflow: hidden; }
+        canvas { background-color: #1e293b; border-radius: 0.5rem; border: 1px solid #4b5563; }
+        .control-panel { background-color: rgba(30, 41, 59, 0.9); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid #4b5563; max-height: 95vh; overflow-y: auto; }
+        input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; background: #4b5563; border-radius: 3px; outline: none; opacity: 0.7; transition: opacity .2s; }
+        input[type="range"]:hover { opacity: 1; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; background: #8b5cf6; cursor: pointer; border-radius: 50%; border: 2px solid #1f2937; }
+        .divider { border-top: 1px solid #4b5563; margin: 1rem 0; }
+        .modal-backdrop { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); display:flex; align-items:center; justify-content:center; z-index:1000; opacity:0; visibility:hidden; transition: opacity 0.3s ease; }
+        .modal-content { background-color: #1f2937; padding: 2rem; border-radius: 0.5rem; max-width:600px; transform: scale(0.95); transition: transform 0.3s ease; }
+        .modal-backdrop.active { opacity: 1; visibility: visible; }
+        .modal-backdrop.active .modal-content { transform: scale(1); }
+        .sort-control input:checked + label { background-color: #4f46e5; color: #e0e7ff; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 flex h-screen items-center justify-center p-4">
+
+<div class="w-full h-full" id="simulation-container">
+    <canvas id="simulationCanvas"></canvas>
+</div>
+
+<div class="control-panel absolute top-4 left-4 p-5 rounded-lg shadow-2xl w-full max-w-sm text-sm">
+    <h1 class="text-xl font-bold mb-2 text-white">Network Controls</h1>
+    <div class="divider"></div>
+    <h2 class="text-base font-semibold mb-2 text-gray-300">Global Physics</h2>
+    <div class="space-y-3">
+        <div>
+            <div class="flex justify-between items-center mb-1"><label class="font-medium text-gray-300 text-xs">Economic Competition</label><span id="competition-value-display" class="px-2 py-0.5 bg-gray-700 rounded-md text-xs font-mono">0.20</span></div>
+            <input type="range" id="competition-strength-slider" min="0" max="1" step="0.05" value="0.2">
+        </div>
+        <div>
+            <div class="flex justify-between items-center mb-1"><label class="font-medium text-gray-300 text-xs">System Damping</label><span id="damping-value-display" class="px-2 py-0.5 bg-gray-700 rounded-md text-xs font-mono">5.0</span></div>
+            <input type="range" id="damping-slider" min="1" max="20" step="0.5" value="5.0">
+        </div>
+    </div>
+
+    <div class="divider"></div>
+    <h2 class="text-base font-semibold mb-2 text-gray-300">Actions</h2>
+    <button id="resetButton" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg">Reset Positions</button>
+    <button id="analyzeButton" class="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-2 px-4 rounded-lg mt-2">Analyze Network Spectrum</button>
+    <button id="econShockButton" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded-lg mt-2">Economy Shock</button>
+
+    <div class="divider"></div>
+    <h2 class="text-base font-semibold mb-2 text-gray-300">Live Stats</h2>
+    <div id="stats-container" class="space-y-2 text-gray-400"></div>
+
+    <div class="divider"></div>
+    <div class="flex justify-between items-center mb-2">
+        <h2 class="text-base font-semibold text-gray-300">Network Ledger</h2>
+        <div class="flex bg-slate-700 rounded-md p-0.5 text-xs">
+            <div class="sort-control">
+                <input type="radio" name="sort" id="sort-prestige" value="prestige" class="sr-only" checked>
+                <label for="sort-prestige" class="px-2 py-1 rounded-md cursor-pointer transition-colors duration-200">Prestige</label>
+            </div>
+            <div class="sort-control ml-2">
+                <input type="radio" name="sort" id="sort-connectivity" value="connectivity" class="sr-only">
+                <label for="sort-connectivity" class="px-2 py-1 rounded-md cursor-pointer transition-colors duration-200">Connectivity</label>
+            </div>
+        </div>
+    </div>
+    <div id="ledger-container" class="space-y-1 text-gray-300 max-h-56 overflow-y-auto pr-2"></div>
+
+</div>
+
+<!-- Analysis Modal (hidden by default) -->
+<div id="analysis-modal" class="modal-backdrop">
+    <div class="modal-content">
+        <h2 class="text-xl font-bold mb-4">Network Spectral Analysis</h2>
+        <canvas id="spectrum-canvas" width="550" height="300"></canvas>
+        <button id="close-modal-button" class="mt-6 w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg">Close</button>
+    </div>
+</div>
+
+<script>
+// **Persona Definitions:** 40 personas (entrepreneurs, corp, government, academics)
+const personas = [
+    {"id":"ent_01","type":"Entrepreneur","name":"Serial Founder","prestige":0.62,"offers":["innovation","agility","execution"],"wants":["capital","access","networks"]},
+    {"id":"ent_02","type":"Entrepreneur","name":"Bootstrapped Innovator","prestige":0.4,"offers":["grit","costReduction","nicheMarket"],"wants":["distribution","visibility","partners"],"hates":["lobbying","long-term funding"]},
+    {"id":"ent_03","type":"Entrepreneur","name":"Impact Builder","prestige":0.48,"offers":["impact","community","trust"],"wants":["funding","legitimacy","policyAccess"]},
+    {"id":"ent_04","type":"Entrepreneur","name":"Deep Tech Founder","prestige":0.68,"offers":["IP","technicalExpertise","prototypes"],"wants":["long-term funding","labSpace","academicPartners"]},
+    {"id":"ent_05","type":"Entrepreneur","name":"Micro Saas Developer","prestige":0.35,"offers":["execution","nicheMarket","cashFlow"],"wants":["scaling","visibility","dataAccess"]},
+    {"id":"ent_06","type":"Entrepreneur","name":"Community Entrepreneur","prestige":0.42,"offers":["outreach","localImpact","communityTrust","communityPartnerships"],"wants":["legitimacy","grants","civicData"]},
+    {"id":"ent_07","type":"Entrepreneur","name":"AI Builder","prestige":0.66,"offers":["MLModels","agility","prototypes"],"wants":["compute","datasets","capital"]},
+    {"id":"ent_08","type":"Entrepreneur","name":"Hardware Hacker","prestige":0.50,"offers":["hardware","prototyping","execution"],"wants":["manufacturing","capital","industrial contracts"]},
+    {"id":"ent_09","type":"Entrepreneur","name":"Growth Hacker","prestige":0.58,"offers":["scaling","agility","dataAccess"],"wants":["networks","capital","distribution"]},
+    {"id":"ent_10","type":"Entrepreneur","name":"Social Entrepreneur","prestige":0.52,"offers":["impact","trust","narrativeDesign"],"wants":["funding","publicAccess","researchValidation"]},
+    {"id":"corp_01","type":"Corporation","name":"Venture Division","prestige":0.82,"offers":["capital","scaling","access"],"wants":["IP","prototypes","agility"],"centrality":1.5},
+    {"id":"corp_02","type":"Corporation","name":"Enterprise Sales","prestige":0.88,"offers":["distribution","networks","infrastructure","industrialProblems"],"wants":["nicheMarket","execution","reliability"]},
+    {"id":"corp_03","type":"Corporation","name":"ESG Director","prestige":0.70,"offers":["sustainability","funding","impactScaling"],"wants":["trust","researchValidation","greenDesign","impact"]},
+    {"id":"corp_04","type":"Corporation","name":"Data & Analytics","prestige":0.76,"offers":["dataAccess","insight","compute","datasets"],"wants":["MLModels","cognitiveData","biomedicalData"]},
+    {"id":"corp_05","type":"Corporation","name":"Innovation Lab","prestige":0.80,"offers":["prototyping","scaling","R&D","agileTeams"],"wants":["IP","breakthroughIdeas","newMethods","capital"]},
+    {"id":"corp_06","type":"Corporation","name":"Regulatory Affairs","prestige":0.85,"offers":["legalSupport","lobbying","complianceGuidance"],"wants":["governmentAlignment","policyAccess","ethicsReview","frameworkDesign"]},
+    {"id":"corp_07","type":"Corporation","name":"Global Partnerships","prestige":0.83,"offers":["licensing","networks","capital"],"wants":["innovation","culturalTranslation","IPRights"]},
+    {"id":"corp_08","type":"Corporation","name":"Tech Operations","prestige":0.65,"offers":["deployment","reliability","uptime","techSupport"],"wants":["automation","costReduction","monitoring","roboticsFrameworks"]},
+    {"id":"corp_09","type":"Corporation","name":"Corporate Research","prestige":0.78,"offers":["labs","technicalStaff","equipment","breakthroughIdeas"],"wants":["experimentalDesign","academicValidation","industrialProblems","innovation"]},
+    {"id":"corp_10","type":"Corporation","name":"Commercialization","prestige":0.74,"offers":["scaling","distribution","manufacturing"],"wants":["prototypes","nicheMarkets","hardware"]},
+    {"id":"gov_01","type":"Government","name":"Clean Infra Fund","prestige":0.90,"offers":["capital","publicAccess","contracts"],"wants":["sustainability","renewableTech","gridPartners","modelingSoftware"],"centrality":1.4},
+    {"id":"gov_02","type":"Government","name":"Workforce Dev Grant","prestige":0.78,"offers":["funding","legitimacy","facilities"],"wants":["trainingDelivery","workforceDev","communityPartnerships"]},
+    {"id":"gov_03","type":"Government","name":"NatSec Tech Grant","prestige":0.86,"offers":["long-term funding","IPProtection","complianceApproval"],"wants":["domesticTech","encryptionStandards","quantumIP","technicalExpertise"]},
+    {"id":"gov_04","type":"Government","name":"Climate Resilience","prestige":0.92,"offers":["environmental permits","capital","public backing"],"wants":["impactTracking","climateScenarios","greenBuilding","policyModels"],"centrality":1.3},
+    {"id":"gov_05","type":"Government","name":"Digital Inclusion","prestige":0.75,"offers":["deployment access","subsidy","outreach channels"],"wants":["broadband","affordableTech","communityLinks","humanFactorsResearch"]},
+    {"id":"gov_06","type":"Government","name":"Health Equity Fund","prestige":0.88,"offers":["dataAccess","public trust","health licenses"],"wants":["medicalTech","biosensors","clinicalStudyDesign","biomedicalData"]},
+    {"id":"gov_07","type":"Government","name":"Small Biz Agency","prestige":0.80,"offers":["access","legitimacy","grants","capital"],"wants":["nicheMarket","localImpact","agility","communityTrust"],"centrality":1.8},
+    {"id":"gov_08","type":"Government","name":"Adv. Manufacturing","prestige":0.83,"offers":["lab space","industrial contracts","equipment"],"wants":["automation","prototypes","hardwareDesign"]},
+    {"id":"gov_09","type":"Government","name":"Urban Tech Pilot","prestige":0.81,"offers":["zoning access","city data","civic legitimacy"],"wants":["real-time sensors","impactAnalysis","behavioralInsights"]},
+    {"id":"gov_10","type":"Government","name":"Public Trust Office","prestige":0.76,"offers":["legitimacy","survey data","frameworkDesign"],"wants":["trust-building","narrativeDesign","engagement models","communityPartnerships"]},
+    {"id":"acad_01","type":"Academics","name":"Genomics Lab","prestige":0.88,"offers":["biomedicalData","researchMethods","ethicsReview"],"wants":["compute","funding","sensorTech","dataAccess"]},
+    {"id":"acad_02","type":"Academics","name":"Urban Policy Inst.","prestige":0.74,"offers":["policyModels","surveyMethods","impactAnalysis"],"wants":["city data","accessToCivicLeaders","publicPlatforms","civic legitimacy"]},
+    {"id":"acad_03","type":"Academics","name":"Quantum Systems Lab","prestige":0.91,"offers":["quantumIP","hardwareDesign","technicalExpertise"],"wants":["long-term funding","advancedManufacturing","industry pilots"],"centrality":1.2},
+    {"id":"acad_04","type":"Academics","name":"AI & Robotics","prestige":0.85,"offers":["MLModels","roboticsFrameworks","datasets","automation"],"wants":["computeAccess","industrialProblems","R&D"]},
+    {"id":"acad_05","type":"Academics","name":"Sustainable Arch.","prestige":0.72,"offers":["greenDesign","materialScience","modelingSoftware"],"wants":["publicBuildingProjects","constructionPartners","zoning access"]},
+    {"id":"acad_06","type":"Academics","name":"Neuroscience Inst.","prestige":0.86,"offers":["cognitiveData","clinicalStudyDesign","researchCohorts"],"wants":["biotechPartners","IRBFastTrack","biosensors"]},
+    {"id":"acad_07","type":"Academics","name":"Rural Tech & Society","prestige":0.68,"offers":["fieldSites","humanFactorsResearch","behavioralInsights","communityLinks"],"wants":["deployment","affordableTech","outreach channels"]},
+    {"id":"acad_08","type":"Academics","name":"Tech Ethics Observatory","prestige":0.81,"offers":["frameworkDesign","legitimacy","complianceGuidance"],"wants":["techPilotCases","legalSupport","civicData"]},
+    {"id":"acad_09","type":"Academics","name":"Climate Systems Inst.","prestige":0.89,"offers":["modelingSoftware","climateScenarios","validationMethods"],"wants":["gridPartners","energyStartups","policyAccess"]},
+    {"id":"acad_10","type":"Academics","name":"Digital Humanities","prestige":0.65,"offers":["archivalData","narrativeDesign","culturalTranslation"],"wants":["openPlatforms","communityPartnerships","techSupport","public trust"]}
+];
+
+// **Attach Matrices:** baseMatrix, injectMatrix, recognitionMatrix for each persona
+personas.forEach(p => {
+    // Base matrix: identity in x,y plus prestige in z
+    p.baseMatrix = [
+        [1, 0.1, 0],
+        [0.1, 1, 0],
+        [0, 0, p.prestige]
+    ];
+    // Inject matrix: small random influence in x,y, no direct z influence
+    p.injectMatrix = [
+        [0.05, 0.02, 0],
+        [0.02, 0.05, 0],
+        [0,    0,    0]
+    ];
+    // Recognition matrix: smaller adjustment
+    p.recognitionMatrix = [
+        [0.01, 0.01, 0],
+        [0.01, 0.01, 0],
+        [0,    0,    0]
+    ];
+});
+
+// Concept map and utility (unchanged)
+const conceptMap = { 'FINANCIAL': ['capital','funding','grants','subsidy','long-term funding'], 'INFRASTRUCTURE': ['labSpace','lab space','facilities','equipment','compute','hardware','manufacturing','prototyping','labs','infrastructure'], 'ACCESS': ['access','distribution','networks','publicAccess','deployment access','outreach channels','accessToCivicLeaders','visibility','licensing','zoning access','publicPlatforms','partners'], 'KNOWLEDGE': ['IP','technicalExpertise','MLModels','prototypes','researchValidation','policyModels','dataAccess','datasets','insight','cognitiveData','biomedicalData','breakthroughIdeas','newMethods','experimentalDesign','academicValidation','domesticTech','encryptionStandards','quantumIP','modelingSoftware','climateScenarios','researchMethods','surveyMethods','impactAnalysis','roboticsFrameworks','automation','materialScience','archivalData','culturalTranslation','innovation'], 'SUPPORT': ['legitimacy','legalSupport','complianceGuidance','IPProtection','complianceApproval','environmental permits','public trust','civic legitimacy','ethicsReview','frameworkDesign','trust'], 'EXECUTION': ['execution','agility','scaling','deployment','reliability','uptime','techSupport','nicheMarket','costReduction','grit'], 'COMMUNITY': ['community','communityTrust','localImpact','communityPartnerships','outreach','communityLinks','trust-building','engagement models'], 'TALENT': ['workforceDev','trainingDelivery','technicalStaff','agileTeams'], 'DESIGN': ['narrativeDesign','greenDesign','hardwareDesign','clinicalStudyDesign'], 'IMPACT': ['impact','sustainability','impactScaling']};
+function getConcept(keyword) {
+    for (const concept in conceptMap) {
+        if (conceptMap[concept].includes(keyword)) return concept;
+    }
+    return keyword;
+}
+
+// **Network Classes (InstitutionalNode and MathematicalInstitutionalNetwork)**
+class InstitutionalNode {
+    constructor({id, name, type, prestige, offers, wants, hates, centrality, color, position, velocity}) {
+        this.id = id;
+        this.name = name;
+        this.type = type;
+        this.prestige = prestige || 0.3;
+        this.mass = 1 + this.prestige;
+        this.offers = offers || [];
+        this.wants = wants || [];
+        this.hates = hates || [];
+        this.centrality = centrality || 1.0;
+        this.color = color;
+        this.position = position;
+        this.velocity = velocity;
+        this.acceleration = [0, 0];
+        this.connectivity = 0;
+    }
+}
+
+// [Simulation class from original code, unchanged except integrate updateState in update loop]
+
+class MathematicalInstitutionalNetwork {
+    constructor(canvasId, personasData) {
+        this.canvas = document.getElementById(canvasId);
+        this.ctx = this.canvas.getContext('2d');
+        this.personasData = personasData;
+        this.n_nodes = this.personasData.length;
+        this.resizeCanvas();
+        window.addEventListener('resize', () => this.resizeCanvas());
+        this.competition_strength = 0.2;
+        this.damping_coeff = 5.0;
+        this.repulsion_strength = 4000.0;
+        this.min_distance = 10.0;
+        this.BASE_COMPETITION_FORCE = 30000;
+        this.spring_constant = 0.002;
+        this.spring_rest_length = 150;
+        this.colorMap = {"Entrepreneur":"#f97316","Corporation":"#22c55e","Government":"#ef4444","Academics":"#3b82f6"};
+        this.nodes = [];
+        this.A = null;
+        this.simulationTime = 0;
+    }
+    resizeCanvas() {
+        const container = document.getElementById('simulation-container');
+        this.canvas.width = container.clientWidth;
+        this.canvas.height = container.clientHeight;
+        this.field_bounds = [this.canvas.width, this.canvas.height];
+    }
+    initialize_nodes() {
+        this.nodes = [];
+        const radius = Math.min(this.canvas.width, this.canvas.height) * 0.32;
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2;
+        const entrepreneurs = this.personasData.filter(p => p.type === 'Entrepreneur');
+        const corporations = this.personasData.filter(p => p.type === 'Corporation');
+        const governments = this.personasData.filter(p => p.type === 'Government');
+        const academics = this.personasData.filter(p => p.type === 'Academics');
+        const orderedPersonas = [];
+        for (let i = 0; i < 10; i++) {
+            if (entrepreneurs[i]) orderedPersonas.push(entrepreneurs[i]);
+            if (corporations[i]) orderedPersonas.push(corporations[i]);
+            if (governments[i]) orderedPersonas.push(governments[i]);
+            if (academics[i]) orderedPersonas.push(academics[i]);
+        }
+        orderedPersonas.forEach((persona, index) => {
+            const angle = (index / this.n_nodes) * 2 * Math.PI;
+            const position = [centerX + radius * Math.cos(angle) + (Math.random()-0.5)*50, centerY + radius * Math.sin(angle) + (Math.random()-0.5)*50];
+            const velocity = [0, 0];
+            // Assign initial color based on type
+            const color = this.colorMap[persona.type];
+            this.nodes.push(new InstitutionalNode({ ...persona, color: color, position: position, velocity: velocity }));
+        });
+        this.simulationTime = 0;
+    }
+    calculateAdjacencyMatrix() {
+        if (this.nodes.length === 0) return;
+        this.A = Array(this.nodes.length).fill(0).map(() => Array(this.nodes.length).fill(0));
+        this.nodes.forEach(node => node.connectivity = 0);
+        for (let i = 0; i < this.nodes.length; i++) {
+            for (let j = i + 1; j < this.nodes.length; j++) {
+                const score = this.matchScore(this.nodes[i], this.nodes[j]);
+                if (score > 1.5) {
+                    this.A[i][j] = score;
+                    this.A[j][i] = score;
+                    this.nodes[i].connectivity++;
+                    this.nodes[j].connectivity++;
+                }
+            }
+        }
+    }
+    matchScore(nodeA, nodeB) {
+        let positiveScore = 0;
+        let negativeScore = 0;
+        const nodeAWants = nodeA.wants.map(getConcept);
+        const nodeBWants = nodeB.wants.map(getConcept);
+        const nodeAOffers = nodeA.offers.map(getConcept);
+        const nodeBOffers = nodeB.offers.map(getConcept);
+        const nodeAHates = (nodeA.hates||[]).map(getConcept);
+        const nodeBHates = (nodeB.hates||[]).map(getConcept);
+
+        nodeAWants.forEach(con => { if (nodeBOffers.includes(con)) positiveScore++; });
+        nodeBWants.forEach(con => { if (nodeAOffers.includes(con)) positiveScore++; });
+
+        nodeAHates.forEach(con => { if (nodeBOffers.includes(con)) negativeScore += 0.5; });
+        nodeBHates.forEach(con => { if (nodeAOffers.includes(con)) negativeScore += 0.5; });
+
+        positiveScore *= nodeA.centrality * nodeB.centrality;
+        return positiveScore - negativeScore;
+    }
+    update(dt) {
+        if (this.nodes.length === 0) return;
+        // Physics update (forces, repulsion, damping) - unchanged
+        for (let i = 0; i < this.nodes.length; i++) {
+            const node1 = this.nodes[i];
+            let total_fx = 0, total_fy = 0;
+            for (let j = 0; j < this.nodes.length; j++) {
+                if (i === j) continue;
+                const node2 = this.nodes[j];
+                const dx = node2.position[0] - node1.position[0];
+                const dy = node2.position[1] - node1.position[1];
+                const distSq = dx*dx + dy*dy;
+                const dist = Math.sqrt(distSq) + 0.1;
+                // Repulsion
+                const repForce = this.repulsion_strength / (distSq + 10);
+                total_fx -= repForce * (dx / dist);
+                total_fy -= repForce * (dy / dist);
+                // Spring force if adjacent
+                if (this.A[i][j] > 0) {
+                    const spring_force = this.spring_constant * (dist - this.spring_rest_length);
+                    total_fx += spring_force * (dx / dist);
+                    total_fy += spring_force * (dy / dist);
+                }
+            }
+            // Damping
+            total_fx -= this.damping_coeff * node1.velocity[0];
+            total_fy -= this.damping_coeff * node1.velocity[1];
+            // Boundary forces
+            const margin = 50, wall_strength = 0.5;
+            if (node1.position[0] < margin) total_fx += wall_strength * (margin - node1.position[0]);
+            if (node1.position[0] > this.field_bounds[0] - margin) total_fx += wall_strength * ((this.field_bounds[0] - margin) - node1.position[0]);
+            if (node1.position[1] < margin) total_fy += wall_strength * (margin - node1.position[1]);
+            if (node1.position[1] > this.field_bounds[1] - margin) total_fy += wall_strength * ((this.field_bounds[1] - margin) - node1.position[1]);
+            // Update acceleration
+            node1.acceleration[0] = total_fx / node1.mass;
+            node1.acceleration[1] = total_fy / node1.mass;
+        }
+        // Update velocities and positions
+        this.nodes.forEach(node => {
+            node.velocity[0] += node.acceleration[0] * dt;
+            node.velocity[1] += node.acceleration[1] * dt;
+            node.position[0] += node.velocity[0] * dt;
+            node.position[1] += node.velocity[1] * dt;
+        });
+        this.simulationTime += dt;
+        this.calculateAdjacencyMatrix();
+    }
+    draw() {
+        // Draw links and nodes (unchanged from original code)
+        this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
+        // Draw edges where A[i][j] > 0
+        for (let i = 0; i < this.nodes.length; i++) {
+            for (let j = i+1; j < this.nodes.length; j++) {
+                if (this.A[i][j] > 0) {
+                    const nodeA = this.nodes[i], nodeB = this.nodes[j];
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(nodeA.position[0], nodeA.position[1]);
+                    this.ctx.lineTo(nodeB.position[0], nodeB.position[1]);
+                    this.ctx.strokeStyle = "#374151";
+                    this.ctx.lineWidth = 1;
+                    this.ctx.stroke();
+                }
+            }
+        }
+        // Draw nodes
+        this.nodes.forEach(node => {
+            this.ctx.beginPath();
+            this.ctx.arc(node.position[0], node.position[1], 8, 0, 2*Math.PI);
+            this.ctx.fillStyle = node.color;
+            this.ctx.fill();
+            // Optionally draw prestige value inside node (as text or by size)
+        });
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const network = new MathematicalInstitutionalNetwork('simulationCanvas', personas);
+    const statsContainer = document.getElementById('stats-container');
+    const ledgerContainer = document.getElementById('ledger-container');
+    const competitionSlider = document.getElementById('competition-strength-slider');
+    const competitionValueDisplay = document.getElementById('competition-value-display');
+    const dampingSlider = document.getElementById('damping-slider');
+    const dampingValueDisplay = document.getElementById('damping-value-display');
+    competitionSlider.addEventListener('input', e => {
+        const v = parseFloat(e.target.value);
+        network.competition_strength = v;
+        competitionValueDisplay.textContent = v.toFixed(2);
+    });
+    dampingSlider.addEventListener('input', e => {
+        const v = parseFloat(e.target.value);
+        network.damping_coeff = v;
+        dampingValueDisplay.textContent = v.toFixed(1);
+    });
+
+    // **Reset and Analyze handlers (unchanged)**
+    document.getElementById('resetButton').addEventListener('click', () => {
+        network.initialize_nodes();
+    });
+    document.getElementById('analyzeButton').addEventListener('click', () => {
+        network.calculateAdjacencyMatrix();
+        // ... (spectrum analysis logic) ...
+        document.getElementById('analysis-modal').classList.add('active');
+    });
+    document.getElementById('close-modal-button').addEventListener('click', () => {
+        document.getElementById('analysis-modal').classList.remove('active');
+    });
+
+    // **Economy Shock:** scale injectMatrix rows 0 and 1 by 1.15, then update
+    document.getElementById('econShockButton').addEventListener('click', () => {
+        personas.forEach(p => {
+            p.injectMatrix[0] = p.injectMatrix[0].map(v => v * 1.15);
+            p.injectMatrix[1] = p.injectMatrix[1].map(v => v * 1.15);
+        });
+    });
+
+    // **Timer for prestige variation (z changes):** every 10s adjust prestige
+    setInterval(() => {
+        personas.forEach(p => {
+            // Randomly adjust prestige a bit
+            let delta = (Math.random() - 0.5) * 0.1;
+            p.prestige = Math.max(0, Math.min(1, p.prestige + delta));
+            // Update baseMatrix third-row value
+            p.baseMatrix[2][2] = p.prestige;
+        });
+    }, 10000);
+
+    // Recursive state update function combining matrices
+    function updateState(persona, depth=1) {
+        // Find corresponding node
+        const node = network.nodes.find(n => n.id === persona.id);
+        if (!node) return;
+        // Current state vector [x, y, prestige]
+        let vec = [node.position[0], node.position[1], persona.prestige];
+        // Combine matrices: base, inject, recognition
+        let baseRes = math.multiply(persona.baseMatrix, vec);
+        let injectRes = math.multiply(persona.injectMatrix, vec);
+        let recogRes = math.multiply(persona.recognitionMatrix, vec);
+        // Sum them
+        let newState = math.add(math.add(baseRes, injectRes), recogRes);
+        node.position[0] = newState[0];
+        node.position[1] = newState[1];
+        persona.prestige = newState[2];
+        if (depth > 1) updateState(persona, depth - 1);
+    }
+
+    // Initialize and run simulation
+    function setupAndRun() {
+        network.initialize_nodes();
+    }
+    setupAndRun();
+
+    // Animation loop using requestAnimationFrame6
+    let lastTime = 0;
+    function animate(timestamp) {
+        const dt = (timestamp - lastTime)/1000 || 0;
+        lastTime = timestamp;
+        network.update(dt);
+        // After physics update, apply matrix-based state updates
+        personas.forEach(p => updateState(p, 1));
+        network.draw();
+        document.getElementById('simTime').textContent = network.simulationTime.toFixed(2);
+        requestAnimationFrame(animate);
+    }
+    animate(0);
+});
+</script>
+
+</body>
+</html>
