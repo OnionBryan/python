@@ -17,6 +17,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.2/math.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/numeric/1.2.6/numeric.min.js" defer="defer"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>
     
@@ -274,6 +275,8 @@
                 <div class="metric-card"><div class="metric-value text-pink-500" id="network-density">0.0%</div><div class="metric-label">Network Density</div></div>
                 <div class="metric-card"><div class="metric-value text-cyan-500" id="trust-index-display">7.2</div><div class="metric-label">Trust Index</div></div>
                 <div class="metric-card"><div class="metric-value text-green-500" id="market-cap-display">$0</div><div class="metric-label">Total Market Cap</div></div>
+                <div class="metric-card"><div class="metric-value text-lime-400" id="avg-clustering">0.0</div><div class="metric-label">Clustering</div></div>
+                <div class="metric-card"><div class="metric-value text-yellow-300" id="avg-path-length">0</div><div class="metric-label">Avg Path</div></div>
             </div>
             <div id="tab-dictionary" class="tab-content">
                 <h2 class="mb-3">Concept Dictionary</h2>
@@ -441,7 +444,7 @@
         let isPaused = false, simulationStartTime = Date.now(), frameCount = 0, lastFpsUpdate = Date.now(), currentFps = 60, lastUIUpdateTime = 0;
         
         // --- UI ELEMENT GLOBALS ---
-        let dampingSlider, speedSlider, dampingValueDisplay, speedValueDisplay, resetButton, pauseButton, inspectorContent, closeInspectorButton, ledgerContainer, camXEl, camYEl, camZEl, visibleNodesEl, visibleConnectionsEl, shortestPathBtn, toggleComponentsBtn, pathInfoEl, layoutSelect, repulsionTypeSelect, huffmanBtn, shannonBtn, clearTreeBtn, codingInfoEl, scenarioTypeSelect, triggerScenarioBtn, lapexSelectBtn, lapexClearBtn, lapexSelectedNodesEl, lapexChartContainerEl, physicsPanel, physicsContentArea, equationFormatSelect, equationTypeSelect, fpsDisplay, nodeCountDisplay, connectionCountDisplay, avgConnectivityDisplay, networkDensityDisplay, simulationTimeDisplay, playPauseBtn, stepBackwardBtn, stepForwardBtn, trustIndexDisplay, marketCapDisplay, randomizePestleBtn, inspectorTab, dictionarySearch, dictionaryContainer, personasSearch, personasContainer, generatePersonaScenarioBtn, personaScenarioPrompt, personaScenarioStatus, runAIAdvisorBtn, aiAdvisorOutput, memoModal, memoTitle, memoBody, closeMemoModalBtn;
+        let dampingSlider, speedSlider, dampingValueDisplay, speedValueDisplay, resetButton, pauseButton, inspectorContent, closeInspectorButton, ledgerContainer, camXEl, camYEl, camZEl, visibleNodesEl, visibleConnectionsEl, shortestPathBtn, toggleComponentsBtn, pathInfoEl, layoutSelect, repulsionTypeSelect, huffmanBtn, shannonBtn, clearTreeBtn, codingInfoEl, scenarioTypeSelect, triggerScenarioBtn, lapexSelectBtn, lapexClearBtn, lapexSelectedNodesEl, lapexChartContainerEl, physicsPanel, physicsContentArea, equationFormatSelect, equationTypeSelect, fpsDisplay, nodeCountDisplay, connectionCountDisplay, avgConnectivityDisplay, networkDensityDisplay, simulationTimeDisplay, playPauseBtn, stepBackwardBtn, stepForwardBtn, trustIndexDisplay, marketCapDisplay, clusteringDisplay, pathLengthDisplay, randomizePestleBtn, inspectorTab, dictionarySearch, dictionaryContainer, personasSearch, personasContainer, generatePersonaScenarioBtn, personaScenarioPrompt, personaScenarioStatus, runAIAdvisorBtn, aiAdvisorOutput, memoModal, memoTitle, memoBody, closeMemoModalBtn;
 
         const PESTLE_NAMES = ["political", "economic", "social", "technological", "legal", "environmental"];
         
@@ -1092,6 +1095,52 @@
             const possibleConnections = (sim.nodes.length * (sim.nodes.length - 1)) / 2;
             const density = possibleConnections > 0 ? (sim.connections.size / possibleConnections * 100) : 0;
             if (networkDensityDisplay) networkDensityDisplay.textContent = density.toFixed(1) + '%';
+
+            const adjacency = new Map();
+            sim.connections.forEach(conn => {
+                if (!adjacency.has(conn.a.id)) adjacency.set(conn.a.id, []);
+                if (!adjacency.has(conn.b.id)) adjacency.set(conn.b.id, []);
+                adjacency.get(conn.a.id).push(conn.b);
+                adjacency.get(conn.b.id).push(conn.a);
+            });
+            let totalCC = 0;
+            sim.nodes.forEach(node => {
+                const neighbors = adjacency.get(node.id) || [];
+                const k = neighbors.length;
+                if (k < 2) return;
+                let links = 0;
+                for (let i = 0; i < k; i++) {
+                    for (let j = i + 1; j < k; j++) {
+                        const a = neighbors[i], b = neighbors[j];
+                        const key = a.id < b.id ? `${a.id}-${b.id}` : `${b.id}-${a.id}`;
+                        if (sim.connections.has(key)) links++;
+                    }
+                }
+                totalCC += links / (k * (k - 1) / 2);
+            });
+            const avgClustering = sim.nodes.length > 0 ? totalCC / sim.nodes.length : 0;
+
+            let totalDist = 0, pairCount = 0;
+            for (const start of sim.nodes) {
+                const dist = new Map([[start.id, 0]]);
+                const q = [start];
+                while (q.length) {
+                    const n = q.shift();
+                    const d = dist.get(n.id);
+                    const neighbors = adjacency.get(n.id) || [];
+                    for (const nb of neighbors) {
+                        if (!dist.has(nb.id)) { dist.set(nb.id, d + 1); q.push(nb); }
+                    }
+                }
+                for (const end of sim.nodes) {
+                    if (end === start) continue;
+                    const d = dist.get(end.id);
+                    if (d !== undefined) { totalDist += d; pairCount++; }
+                }
+            }
+            const avgPath = pairCount > 0 ? totalDist / pairCount : 0;
+            if (clusteringDisplay) clusteringDisplay.textContent = avgClustering.toFixed(2);
+            if (pathLengthDisplay) pathLengthDisplay.textContent = avgPath.toFixed(2);
         }
         function updateInspector(node) {
             const inspectorTabContent = document.getElementById('tab-inspector');
@@ -1448,11 +1497,32 @@
             }
             computeSpectrum(matrix, method = 'eigen') {
                 try {
-                    if (method === 'eigen') { const eigs = this.math.eigs(matrix); return eigs.values.filter(v => !this.math.isComplex(v)).sort((a, b) => b - a); }
-                    const signal = matrix[0]; 
-                    if (method === 'fft') { const result = this.math.fft(signal); return result.map(c => this.math.abs(c)).slice(0, Math.floor(result.length / 2)); }
-                    if (method === 'laplace') { return signal.map((val, i) => val * Math.exp(-i / (signal.length * 0.5))).sort((a,b) => b-a); }
-                } catch (error) { console.error("Computation failed:", error); return Array(matrix.length).fill(0); }
+                    if (method === 'eigen') {
+                        if (typeof numeric !== 'undefined' && numeric.eig) {
+                            const eigs = numeric.eig(matrix);
+                            const re = eigs.lambda.x;
+                            const im = eigs.lambda.y || [];
+                            const values = re.map((val, i) =>
+                                Math.abs(im[i] || 0) > 1e-10 ? NaN : val
+                            );
+                            return values.filter(v => !isNaN(v)).sort((a, b) => Math.abs(b) - Math.abs(a));
+                        } else if (this.math.eigs) {
+                            const eigs = this.math.eigs(matrix);
+                            return eigs.values.filter(v => !this.math.isComplex(v)).sort((a, b) => Math.abs(b) - Math.abs(a));
+                        }
+                    }
+                    const signal = matrix[0];
+                    if (method === 'fft') {
+                        const result = this.math.fft(signal);
+                        return result.map(c => this.math.abs(c)).slice(0, Math.floor(result.length / 2));
+                    }
+                    if (method === 'laplace') {
+                        return signal.map((val, i) => val * Math.exp(-i / (signal.length * 0.5))).sort((a, b) => b - a);
+                    }
+                } catch (error) {
+                    console.error("Computation failed:", error);
+                    return Array(matrix.length).fill(0);
+                }
             }
             calculateMetrics(matrix, spectrum) {
                 if (!spectrum || spectrum.length === 0) { return { spectralRadius: 0, connectivityIndex: 0, spectralGap: 0 }; }
@@ -1616,7 +1686,7 @@
         
         function setupEventListeners() {
             // This function is now a behemoth. It's fine for this context but could be split up.
-            dampingSlider = document.getElementById('damping-slider'); speedSlider = document.getElementById('speed-slider'); dampingValueDisplay = document.getElementById('damping-value-display'); speedValueDisplay = document.getElementById('speed-value-display'); resetButton = document.getElementById('resetButton'); pauseButton = document.getElementById('pauseButton'); inspectorContent = document.getElementById('inspector-content'); closeInspectorButton = document.getElementById('close-inspector'); ledgerContainer = document.getElementById('ledger-container'); camXEl = document.getElementById('cam-x'); camYEl = document.getElementById('cam-y'); camZEl = document.getElementById('cam-z'); visibleNodesEl = document.getElementById('visible-nodes'); visibleConnectionsEl = document.getElementById('visible-connections'); shortestPathBtn = document.getElementById('shortest-path-btn'); toggleComponentsBtn = document.getElementById('toggle-components-btn'); pathInfoEl = document.getElementById('path-info'); layoutSelect = document.getElementById('layout-select'); repulsionTypeSelect = document.getElementById('repulsion-type-select'); huffmanBtn = document.getElementById('huffman-btn'); shannonBtn = document.getElementById('shannon-btn'); clearTreeBtn = document.getElementById('clear-tree-btn'); codingInfoEl = document.getElementById('coding-info'); scenarioTypeSelect = document.getElementById('scenario-type-select'); triggerScenarioBtn = document.getElementById('trigger-scenario-btn'); lapexSelectBtn = document.getElementById('lapex-select-btn'); lapexClearBtn = document.getElementById('lapex-clear-btn'); lapexSelectedNodesEl = document.getElementById('lapex-selected-nodes'); lapexChartContainerEl = document.getElementById('lapex-chart-container'); physicsPanel = document.getElementById('physics-panel'); physicsContentArea = document.getElementById('physics-content-area'); equationFormatSelect = document.getElementById('equation-format-select'); equationTypeSelect = document.getElementById('equation-type-select'); fpsDisplay = document.getElementById('fps-display'); nodeCountDisplay = document.getElementById('node-count'); connectionCountDisplay = document.getElementById('connection-count'); avgConnectivityDisplay = document.getElementById('avg-connectivity'); networkDensityDisplay = document.getElementById('network-density'); simulationTimeDisplay = document.getElementById('simulation-time'); playPauseBtn = document.getElementById('play-pause'); stepBackwardBtn = document.getElementById('step-backward'); stepForwardBtn = document.getElementById('step-forward'); trustIndexDisplay = document.getElementById('trust-index-display'); marketCapDisplay = document.getElementById('market-cap-display'); randomizePestleBtn = document.getElementById('randomize-pestle'); inspectorTab = document.getElementById('inspector-tab'); dictionarySearch = document.getElementById('dictionary-search'); dictionaryContainer = document.getElementById('dictionary-container'); personasSearch = document.getElementById('personas-search'); personasContainer = document.getElementById('personas-container');
+            dampingSlider = document.getElementById('damping-slider'); speedSlider = document.getElementById('speed-slider'); dampingValueDisplay = document.getElementById('damping-value-display'); speedValueDisplay = document.getElementById('speed-value-display'); resetButton = document.getElementById('resetButton'); pauseButton = document.getElementById('pauseButton'); inspectorContent = document.getElementById('inspector-content'); closeInspectorButton = document.getElementById('close-inspector'); ledgerContainer = document.getElementById('ledger-container'); camXEl = document.getElementById('cam-x'); camYEl = document.getElementById('cam-y'); camZEl = document.getElementById('cam-z'); visibleNodesEl = document.getElementById('visible-nodes'); visibleConnectionsEl = document.getElementById('visible-connections'); shortestPathBtn = document.getElementById('shortest-path-btn'); toggleComponentsBtn = document.getElementById('toggle-components-btn'); pathInfoEl = document.getElementById('path-info'); layoutSelect = document.getElementById('layout-select'); repulsionTypeSelect = document.getElementById('repulsion-type-select'); huffmanBtn = document.getElementById('huffman-btn'); shannonBtn = document.getElementById('shannon-btn'); clearTreeBtn = document.getElementById('clear-tree-btn'); codingInfoEl = document.getElementById('coding-info'); scenarioTypeSelect = document.getElementById('scenario-type-select'); triggerScenarioBtn = document.getElementById('trigger-scenario-btn'); lapexSelectBtn = document.getElementById('lapex-select-btn'); lapexClearBtn = document.getElementById('lapex-clear-btn'); lapexSelectedNodesEl = document.getElementById('lapex-selected-nodes'); lapexChartContainerEl = document.getElementById('lapex-chart-container'); physicsPanel = document.getElementById('physics-panel'); physicsContentArea = document.getElementById('physics-content-area'); equationFormatSelect = document.getElementById('equation-format-select'); equationTypeSelect = document.getElementById('equation-type-select'); fpsDisplay = document.getElementById('fps-display'); nodeCountDisplay = document.getElementById('node-count'); connectionCountDisplay = document.getElementById('connection-count'); avgConnectivityDisplay = document.getElementById('avg-connectivity'); networkDensityDisplay = document.getElementById('network-density'); simulationTimeDisplay = document.getElementById('simulation-time'); playPauseBtn = document.getElementById('play-pause'); stepBackwardBtn = document.getElementById('step-backward'); stepForwardBtn = document.getElementById('step-forward'); trustIndexDisplay = document.getElementById('trust-index-display'); marketCapDisplay = document.getElementById('market-cap-display'); clusteringDisplay = document.getElementById('avg-clustering'); pathLengthDisplay = document.getElementById('avg-path-length'); randomizePestleBtn = document.getElementById('randomize-pestle'); inspectorTab = document.getElementById('inspector-tab'); dictionarySearch = document.getElementById('dictionary-search'); dictionaryContainer = document.getElementById('dictionary-container'); personasSearch = document.getElementById('personas-search'); personasContainer = document.getElementById('personas-container');
             generatePersonaScenarioBtn = document.getElementById('generate-persona-scenario-btn');
             personaScenarioPrompt = document.getElementById('persona-scenario-prompt');
             personaScenarioStatus = document.getElementById('persona-scenario-status');
