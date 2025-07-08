@@ -17,7 +17,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.2/math.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/numeric/1.2.6/numeric.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/numeric/1.2.6/numeric.min.js" defer="defer"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>
     
@@ -1457,10 +1457,10 @@
                             const values = re.map((val, i) =>
                                 Math.abs(im[i] || 0) > 1e-10 ? NaN : val
                             );
-                            return values.filter(v => !isNaN(v)).sort((a, b) => b - a);
+                            return values.filter(v => !isNaN(v)).sort((a, b) => Math.abs(b) - Math.abs(a));
                         } else if (this.math.eigs) {
                             const eigs = this.math.eigs(matrix);
-                            return eigs.values.filter(v => !this.math.isComplex(v)).sort((a, b) => b - a);
+                            return eigs.values.filter(v => !this.math.isComplex(v)).sort((a, b) => Math.abs(b) - Math.abs(a));
                         }
                     }
                     const signal = matrix[0];
