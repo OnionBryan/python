@@ -1299,8 +1299,7 @@
             hide() { this.group.visible = false; }
             
             analyze() {
-                const params = this.getParams();
-                const matrix = this.generateConnectivityMatrix(params);
+                const matrix = this.generateConnectivityMatrix();
                 const spectrum = this.computeSpectrum(matrix, document.getElementById('analysis-method-select').value);
                 const metrics = this.calculateMetrics(matrix, spectrum);
                 const shannonEntropy = this.calculateShannonEntropy(matrix);
@@ -1308,20 +1307,33 @@
                 this.displayMetrics(metrics, shannonEntropy);
                 this.visualizeEigenvalues(spectrum);
 
-                this.graphData = {
-                    nodes: PESTLE_NAMES.map((name, i) => ({ 
-                        id: i, 
-                        name,
-                        wants: Math.random(),
-                        needs: Math.random(),
-                        prestige: pestleFactors[name]
-                    })),
-                    links: []
-                };
-                for (let i = 0; i < params.dimension; i++) {
-                    for (let j = i + 1; j < params.dimension; j++) {
-                        if (matrix[i][j] > 0.15) {
-                            this.graphData.links.push({ source: i, target: j, weight: matrix[i][j] });
+                if (sim && sim.nodes && sim.nodes.length) {
+                    const indexMap = new Map(sim.nodes.map((n, idx) => [n.id, idx]));
+                    this.graphData = {
+                        nodes: sim.nodes.map((n, idx) => ({
+                            id: idx,
+                            name: n.name,
+                            wants: n.wantsVector.length(),
+                            needs: n.offersVector.length(),
+                            prestige: n.prestige
+                        })),
+                        links: []
+                    };
+                    sim.connections.forEach(conn => {
+                        const i = indexMap.get(conn.a.id);
+                        const j = indexMap.get(conn.b.id);
+                        if (i !== undefined && j !== undefined) {
+                            this.graphData.links.push({ source: i, target: j, weight: conn.score || 1 });
+                        }
+                    });
+                } else {
+                    this.graphData = { nodes: [], links: [] };
+                    for (let i = 0; i < matrix.length; i++) {
+                        this.graphData.nodes.push({ id: i, name: PESTLE_NAMES[i] || `N${i}` });
+                        for (let j = i + 1; j < matrix.length; j++) {
+                            if (matrix[i][j] > 0.15) {
+                                this.graphData.links.push({ source: i, target: j, weight: matrix[i][j] });
+                            }
                         }
                     }
                 }
@@ -1483,14 +1495,32 @@
                 });
             }
             
-            getParams() { return { dimension: PESTLE_NAMES.length, pestleValues: PESTLE_NAMES.map(name => pestleFactors[name]), }; }
-            generateConnectivityMatrix(params) {
-                const { dimension, pestleValues } = params;
-                let matrix = Array(dimension).fill(0).map(() => Array(dimension).fill(0));
+            generateConnectivityMatrix() {
+                if (sim && sim.nodes && sim.nodes.length) {
+                    const n = sim.nodes.length;
+                    const indexMap = new Map(sim.nodes.map((n, idx) => [n.id, idx]));
+                    const matrix = Array(n).fill(0).map(() => Array(n).fill(0));
+                    for (let i = 0; i < n; i++) matrix[i][i] = 1.0;
+                    sim.connections.forEach(conn => {
+                        const i = indexMap.get(conn.a.id);
+                        const j = indexMap.get(conn.b.id);
+                        if (i !== undefined && j !== undefined) {
+                            const w = conn.score || 1;
+                            matrix[i][j] = matrix[j][i] = w;
+                        }
+                    });
+                    return matrix;
+                }
+                const dimension = PESTLE_NAMES.length;
+                const pestleValues = PESTLE_NAMES.map(name => pestleFactors[name]);
+                const matrix = Array(dimension).fill(0).map(() => Array(dimension).fill(0));
                 for (let i = 0; i < dimension; i++) {
                     for (let j = i; j < dimension; j++) {
-                        if (i === j) { matrix[i][j] = 1.0; } 
-                        else { const value = (pestleValues[i] + pestleValues[j]) / 2; matrix[i][j] = matrix[j][i] = Math.max(0, Math.min(1, value)); }
+                        if (i === j) { matrix[i][j] = 1.0; }
+                        else {
+                            const value = (pestleValues[i] + pestleValues[j]) / 2;
+                            matrix[i][j] = matrix[j][i] = Math.max(0, Math.min(1, value));
+                        }
                     }
                 }
                 return matrix;
