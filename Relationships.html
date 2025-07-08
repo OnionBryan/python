@@ -1081,9 +1081,9 @@
             });
         }
         function updateBusinessMetrics(nodes) {
-            if (!nodes || nodes.length === 0) return;
+            nodes = nodes || [];
             const totalTrust = nodes.reduce((sum, n) => sum + n.trust, 0);
-            const avgTrust = (totalTrust / nodes.length) * 10;
+            const avgTrust = nodes.length ? (totalTrust / nodes.length) * 10 : 0;
             const totalMarketCap = nodes.reduce((sum, n) => sum + (n.marketCap || 0), 0);
             if (trustIndexDisplay) trustIndexDisplay.textContent = avgTrust.toFixed(1);
             if (marketCapDisplay) marketCapDisplay.textContent = formatMarketCap(totalMarketCap * 1e6);
@@ -1603,7 +1603,7 @@
 
                 eigenvalues.forEach((d, i) => {
                     const bar = document.createElementNS(svgNS, "rect");
-                    const barHeight = (d / maxVal) * height;
+                    const barHeight = (Math.abs(d) / maxVal) * height;
                     bar.setAttribute("x", i * (barWidth + barPadding));
                     bar.setAttribute("y", height - barHeight);
                     bar.setAttribute("width", barWidth);
