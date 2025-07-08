@@ -1,0 +1,2692 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Multi-Mode Differential Equation Visualizer</title>
+    <!-- KaTeX for rendering mathematical formulas -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" xintegrity="sha384-n8MVd4RsNIU0KOVEMeaMurDcGPPc9CoDvFATVlPVBSk8l4oKMLNL5DbjJNsNUjox" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" xintegrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8" crossorigin="anonymous"></script>
+    
+    <!-- math.js for more complex mathematical operations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.2/math.min.js"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Courier+Prime&display=swap" rel="stylesheet">
+
+    <style>
+        /* Basic styling for the body, canvas, and UI panels */
+        body { margin: 0; font-family: 'Inter', sans-serif; background-color: #111; color: #fff; overflow: hidden; }
+        canvas { display: block; }
+        .info-panel { background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 8px 15px; }
+        
+        /* Centered top container for equations */
+        #top-container { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 10px; align-items: center; z-index: 10; }
+        #equation-display, #context-display { font-size: 1.1em; text-align: center; }
+        
+        /* Camera matrix info panel in the top right */
+        #matrix-info { position: absolute; top: 10px; right: 10px; font-family: 'Courier Prime', monospace; font-size: 0.8em; line-height: 1.2; z-index: 10; }
+        #matrix-info h3 { margin-top: 0; }
+        
+        /* Main controls container at the bottom */
+        .controls-container { position: absolute; bottom: 10px; left: 10px; right: 10px; background: rgba(40, 40, 40, 0.85); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 10px; z-index: 10; max-width: 1400px; margin: auto; }
+        
+        /* Header for switching simulation modes */
+        .controls-header { display: flex; justify-content: center; flex-wrap: wrap; gap: 15px; margin-bottom: 15px; }
+        .controls-header label { font-size: 1.0em; padding: 5px 10px; border-radius: 5px; cursor: pointer; transition: background-color 0.3s; }
+        .controls-header input { display: none; }
+        .controls-header input:checked + label { background-color: #0056b3; font-weight: bold; }
+        
+        /* Grid layout for individual controls */
+        .controls-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 20px; align-items: end; }
+        
+        /* Styling for a single control group (label, input) */
+        .control-group { display: flex; flex-direction: column; gap: 5px; }
+        .control-group h4 { margin: 5px 0; color: #00aaff; border-bottom: 1px solid #00aaff; padding-bottom: 3px; }
+        .control-group label { font-weight: bold; font-size: 0.9em; }
+        .control-group input[type="range"], .control-group select, .control-group button, .control-group input[type="number"] { width: 100%; box-sizing: border-box; }
+        .control-group select, .control-group input[type="number"] { background: #333; border: 1px solid #555; color: #fff; padding: 5px; border-radius: 5px;}
+        .control-group button { padding: 8px; border-radius: 5px; border: none; background-color: #007bff; color: white; cursor: pointer; transition: background-color 0.2s; }
+        .control-group button:hover { background-color: #0056b3; }
+        
+        .button-group { display: flex; gap: 5px; }
+        .button-group button { flex-grow: 1; background-color: #444; }
+        .button-group button:hover { background-color: #555; }
+        
+        .checkbox-group { display: flex; gap: 10px; align-items: center;}
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div id="top-container">
+        <div id="equation-display" class="info-panel hidden"></div>
+        <div id="context-display" class="info-panel hidden"></div>
+    </div>
+    <div id="matrix-info" class="info-panel"><h3>Camera Matrix</h3><pre id="matrix-content"></pre></div>
+
+    <div class="controls-container">
+        <div class="controls-header">
+            <input type="radio" id="mode-oscillator" name="sim-mode" value="oscillator"> <label for="mode-oscillator">Oscillators</label>
+            <input type="radio" id="mode-chaotic" name="sim-mode" value="chaotic"> <label for="mode-chaotic">Chaotic Systems</label>
+            <input type="radio" id="mode-quantum" name="sim-mode" value="quantum"> <label for="mode-quantum">Quantum Mechanics</label>
+            <input type="radio" id="mode-heat" name="sim-mode" value="heat3d"> <label for="mode-heat">Heat Field</label>
+            <input type="radio" id="mode-gas" name="sim-mode" value="gas"> <label for="mode-gas">Gas Dispersion</label>
+            <input type="radio" id="mode-fluid" name="sim-mode" value="wave"> <label for="mode-fluid">Wave & Beach</label>
+            <input type="radio" id="mode-laplace" name="sim-mode" value="laplace"> <label for="mode-laplace">Control Theory</label>
+            <input type="radio" id="mode-signal" name="sim-mode" value="signal"> <label for="mode-signal">Signal Processing</label>
+            <input type="radio" id="mode-stress" name="sim-mode" value="stress"> <label for="mode-stress">Stress Tensors</label>
+            <input type="radio" id="mode-tribology" name="sim-mode" value="tribology"> <label for="mode-tribology">Tribology</label>
+            <input type="radio" id="mode-gearing" name="sim-mode" value="gearing" checked> <label for="mode-gearing">Torque & Gearing</label>
+            <input type="radio" id="mode-integral" name="sim-mode" value="integral"> <label for="mode-integral">Integration</label>
+            <input type="radio" id="mode-network" name="sim-mode" value="network"> <label for="mode-network">Networks</label>
+            <input type="radio" id="mode-complex" name="sim-mode" value="complex"> <label for="mode-complex">Complex Plane</label>
+        </div>
+        <div id="oscillator-controls" class="controls-grid hidden"></div>
+        <div id="chaotic-controls" class="controls-grid hidden"></div>
+        <div id="quantum-controls" class="controls-grid hidden"></div>
+        <div id="heat3d-controls" class="controls-grid hidden"></div>
+        <div id="gas-controls" class="controls-grid hidden"></div>
+        <div id="wave-controls" class="controls-grid hidden"></div>
+        <div id="laplace-controls" class="controls-grid hidden"></div>
+        <div id="signal-controls" class="controls-grid hidden"></div>
+        <div id="stress-controls" class="controls-grid hidden"></div>
+        <div id="tribology-controls" class="controls-grid hidden"></div>
+        <div id="gearing-controls" class="controls-grid"></div>
+        <div id="integral-controls" class="controls-grid hidden"></div>
+        <div id="network-controls" class="controls-grid hidden"></div>
+        <div id="complex-controls" class="controls-grid hidden"></div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.166.1/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.166.1/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            let scene, camera, renderer, controls, activeObject, integralArea;
+            let networkSimulator = null;
+            let tribologyState = {};
+            let gearingState = {};
+            let gasState = {};
+            let waveState = {};
+
+            let simMode = 'gearing';
+            
+            let oscParams = { a: 1.0, b: 0.1, c: 5.0, forceType: 'dirichlet', inverse: false, forceAmp: 1.0, forceFreq: 1.0, x: 1.0, y: 0.0, t: 0.01, dt: 0.01, trailLength: 2000, seriesTerms: 50, points: [], colors: [], minE: Infinity, maxE: -Infinity };
+            let chaoticParams = { type: 'lorentz', sigma: 10, rho: 28, beta: 8/3, a: 0.95, b: 0.7, c: 0.6, d: 3.5, e: 0.25, f: 0.1, alpha: 1.0, gamma: 0.2, delta: 0.3, omega: 1.2, x: 0.1, y: 0, z: 0, dt: 0.01, trailLength: 5000, points: [] };
+            let quantumParams = { type: 'box', L: 10, n: 3, l: 0, m: 0, mass: 1, omega: 1, res: 50, barrierWidth: 2, barrierHeight: 5, particleEnergy: 3, nx: 1, ny: 1 };
+            let heat3DParams = { alpha: 0.1, gridSize: 20, srcX: 10, srcY: 10, srcZ: 10, initialTemp: 100, sourceSharpness: 8, particleSize: 0.5, u: [], u_next: [] };
+            let gasParams = { diffusion: 0.1, pumpRate: 5, pumpX: 10, pumpY: 10, pumpZ: 10, gridSize: 20, particleSize: 0.5 };
+            let waveParams = { amplitude: 0.8, frequency: 1.5, speed: 0.5, leftPushPower: 0.1 };
+            let laplaceParams = { func: 'butterworth', order: 3, epsilon: 0.5, res: 80, view: 'log_magnitude', reMin: -2, reMax: 2, imMin: -2, imMax: 2, zMin: -60, zMax: 10 };
+            let signalParams = { type: 'am', carrierFreq: 10, modFreq: 1, modIndex: 0.5, dutyCycle: 0.5, A: 2, mu: 255 };
+            let stressParams = { s_xx: 5, s_yy: -3, s_zz: 2, t_xy: 4, t_yz: -2, t_zx: 1, showPrincipal: true, showMohr: true };
+            let tribologyParams = { angle: 20, mass: 1, mu_s: 0.4, mu_k: 0.3 };
+            let gearingParams = {
+                inputType: 'constant',
+                inputTorque: 5,
+                sineAmplitude: 10,
+                sineFrequency: 0.5,
+                driveGearTeeth: 30,
+                idlerGearTeeth: 15,
+                outputGearTeeth: 45,
+                momentOfInertia: 0.1,
+                friction: 0.05,
+                load: 2,
+                backlash: 0.02,
+                material: 'steel'
+            };
+            let integralParams = { func: 'x_squared', a: -2, b: 3, inf_a: false, inf_b: false, method: 'trapezoid', steps: 100, practicalInfinity: 50 };
+            let networkUIParams = {
+                nodes: 50,
+                probability: 0.1,
+                layout: 'force-directed',
+                model: 'erdos-renyi',
+                colorMode: 'degree',
+                sizeMode: 'degree',
+                repulsion: 1.0,
+                attraction: 0.01,
+                idealDist: 15,
+                damping: 0.95,
+                ba_m: 2,
+                ba_m0: 3,
+                ws_k: 4,
+                ws_p: 0.2,
+                grid_w: 10,
+                grid_h: 5,
+                ring_k: 2,
+                saturation: 0.9,
+                minNodeSize: 0.5,
+                maxNodeSize: 2.5,
+                edgeOpacity: 0.3
+            };
+            let complexParams = { func: 'zeta', res: 100, reMin: -20, reMax: 20, imMin: -20, imMax: 20, p1a: 1, p1b: 2, nyquistOmegaMax: 50, nyquistSteps: 1000 };
+            
+            // --- COMPLEX NUMBER CLASS (Robust Power Function) ---
+            class Complex { constructor(re, im) { this.re = re || 0; this.im = im || 0; } add(c) { return new Complex(this.re + c.re, this.im + c.im); } sub(c) { return new Complex(this.re - c.re, this.im - c.im); } mul(c) { return new Complex(this.re * c.re - this.im * c.im, this.re * c.im + this.im * c.re); } div(c) { const d = c.re * c.re + c.im * c.im; if (Math.abs(d) < 1e-9) return new Complex(NaN, NaN); return new Complex((this.re * c.re + this.im * c.im) / d, (this.im * c.re - this.re * c.im) / d); } abs() { return Math.sqrt(this.re * this.re + this.im * this.im); } arg() { return Math.atan2(this.im, this.re); } static pow(b, exp) { if (b.re === 0 && b.im === 0) return new Complex(0,0); const r = b.abs(); const theta = b.arg(); const c = exp.re; const d = exp.im; const factor = Math.pow(r, c) * Math.exp(-d * theta); return new Complex(factor * Math.cos(d * Math.log(r) + c * theta), factor * Math.sin(d * Math.log(r) + c * theta)); } static sin(c) { return new Complex(Math.sin(c.re) * Math.cosh(c.im), Math.cos(c.re) * Math.sinh(c.im)); } }
+            
+            class NetworkSimulator {
+                constructor(sceneRef, controlsRef) {
+                    this.scene = sceneRef;
+                    this.controls = controlsRef;
+                    this.camera = camera;
+                    this.container = new THREE.Group();
+                    this.scene.add(this.container);
+                    this.graph = { nodes: [], edges: [] };
+                    this.nodeObjects = [];
+                    this.edgeObjects = [];
+                    this.codingTree = null;
+                    this.selectedNodes = [];
+                    this.draggedNode = null;
+                    this.mainComponentOnly = false;
+                    this.raycaster = new THREE.Raycaster();
+                    this.mouse = new THREE.Vector2();
+                    this.plane = new THREE.Plane();
+                }
+                init(params) {
+                    this.params = { ...params };
+                    camera.position.set(0, 0, 80);
+                    this.controls.target.set(0, 0, 0);
+                    switch(this.params.model) {
+                        case 'barabasi-albert': this.generateBarabasiAlbert(); break;
+                        case 'watts-strogatz': this.generateWattsStrogatz(); break;
+                        case 'grid-2d': this.generateGrid2D(); break;
+                        case 'ring-lattice': this.generateRingLattice(); break;
+                        default: this.generateErdosRenyi(); break;
+                    }
+                    this.calculateNodeDegrees();
+                    this.calculateComponents();
+                    this.createVisuals();
+                    this.updateVisuals();
+                }
+                createVisuals() {
+                    const nodeGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+                    for (const node of this.graph.nodes) {
+                        const material = new THREE.MeshPhongMaterial({ color: 0x00aaff });
+                        const mesh = new THREE.Mesh(nodeGeometry, material);
+                        mesh.position.copy(node.position);
+                        mesh.userData.node = node;
+                        this.container.add(mesh);
+                        this.nodeObjects.push(mesh);
+                    }
+                    const edgeMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: this.params.edgeOpacity });
+                    for (const edge of this.graph.edges) {
+                        const sourcePos = this.graph.nodes[edge.source].position;
+                        const targetPos = this.graph.nodes[edge.target].position;
+                        const geometry = new THREE.BufferGeometry().setFromPoints([sourcePos, targetPos]);
+                        const line = new THREE.Line(geometry, edgeMaterial);
+                        line.userData.edge = edge;
+                        this.container.add(line);
+                        this.edgeObjects.push(line);
+                    }
+                    renderStaticEquation('context-display', `Nodes: ${this.graph.nodes.length} \\quad Edges: ${this.graph.edges.length}`);
+                }
+                update() {
+                    if (this.params.layout !== 'force-directed' || !this.graph.nodes.length) return;
+                    const { repulsion, attraction, idealDist, damping } = this.params;
+                    const max_force = 2.0;
+                    this.graph.nodes.forEach(n => n.force.set(0, 0, 0));
+                    for (let i = 0; i < this.graph.nodes.length; i++) {
+                        for (let j = i + 1; j < this.graph.nodes.length; j++) {
+                            const nodeA = this.graph.nodes[i], nodeB = this.graph.nodes[j];
+                            const delta = new THREE.Vector3().subVectors(nodeA.position, nodeB.position);
+                            const distSq = delta.lengthSq();
+                            if (distSq > 0.001) {
+                                const forceMag = repulsion / distSq;
+                                const f = delta.normalize().multiplyScalar(forceMag);
+                                nodeA.force.add(f);
+                                nodeB.force.sub(f);
+                            }
+                        }
+                    }
+                    for (const edge of this.graph.edges) {
+                        const nodeA = this.graph.nodes[edge.source], nodeB = this.graph.nodes[edge.target];
+                        const delta = new THREE.Vector3().subVectors(nodeA.position, nodeB.position);
+                        const dist = Math.max(0.1, delta.length());
+                        const forceMag = attraction * (dist - idealDist);
+                        const f = delta.normalize().multiplyScalar(forceMag);
+                        nodeA.force.sub(f);
+                        nodeB.force.add(f);
+                    }
+                    for (let i = 0; i < this.graph.nodes.length; i++) {
+                        const node = this.graph.nodes[i];
+                        if (node !== this.draggedNode) {
+                            node.force.clampLength(0, max_force);
+                            node.velocity.add(node.force).multiplyScalar(damping);
+                            if (isFinite(node.velocity.x) && isFinite(node.velocity.y) && isFinite(node.velocity.z)) {
+                                node.position.add(node.velocity);
+                            } else {
+                                node.velocity.set(0,0,0);
+                            }
+                        }
+                        this.nodeObjects[i].position.copy(node.position);
+                    }
+                    for (let i = 0; i < this.edgeObjects.length; i++) {
+                        const { source, target } = this.edgeObjects[i].userData.edge;
+                        const pos = this.edgeObjects[i].geometry.attributes.position;
+                        const sourcePos = this.graph.nodes[source].position;
+                        const targetPos = this.graph.nodes[target].position;
+                        pos.setXYZ(0, sourcePos.x, sourcePos.y, sourcePos.z);
+                        pos.setXYZ(1, targetPos.x, targetPos.y, targetPos.z);
+                        pos.needsUpdate = true;
+                    }
+                }
+                generateErdosRenyi() {
+                    const { nodes, probability, layout } = this.params;
+                    this.graph = { nodes: [], edges: [] };
+                    const radius = 35;
+                    for (let i = 0; i < nodes; i++) {
+                        let pos;
+                        if (layout === 'sphere') { const phi = Math.acos(-1 + (2 * i) / (nodes -1)); const theta = Math.sqrt(nodes * Math.PI) * phi; pos = new THREE.Vector3(radius*Math.cos(theta)*Math.sin(phi), radius*Math.sin(theta)*Math.sin(phi), radius*Math.cos(phi)); }
+                        else { pos = new THREE.Vector3((Math.random()-0.5)*50, (Math.random()-0.5)*50, (Math.random()-0.5)*50); }
+                        this.graph.nodes.push({ id: i, position: pos, velocity: new THREE.Vector3(), force: new THREE.Vector3(), degree: 0 });
+                    }
+                    if (nodes > 1) { for (let i = 0; i < nodes; i++) for (let j = i + 1; j < nodes; j++) if (Math.random() < probability) this.graph.edges.push({ source: i, target: j }); }
+                }
+                generateBarabasiAlbert() {
+                    const { nodes, ba_m, ba_m0 } = this.params;
+                    this.graph = { nodes: [], edges: [] };
+                    let nodeDegrees = [], totalDegree = 0;
+                    let m0 = Math.min(nodes, ba_m0);
+                    for(let i = 0; i < m0; i++) {
+                        const pos = new THREE.Vector3((Math.random()-0.5)*50, (Math.random()-0.5)*50, (Math.random()-0.5)*50);
+                        this.graph.nodes.push({ id: i, position: pos, velocity: new THREE.Vector3(), force: new THREE.Vector3() });
+                        nodeDegrees.push(0);
+                    }
+                    for(let i=0; i<m0; i++) for(let j=i+1; j<m0; j++) {
+                        this.graph.edges.push({ source: i, target: j });
+                        nodeDegrees[i]++; nodeDegrees[j]++; totalDegree += 2;
+                    }
+                    for (let i = m0; i < nodes; i++) {
+                        const pos = new THREE.Vector3((Math.random()-0.5)*50, (Math.random()-0.5)*50, (Math.random()-0.5)*50);
+                        this.graph.nodes.push({ id: i, position: pos, velocity: new THREE.Vector3(), force: new THREE.Vector3() });
+                        nodeDegrees.push(0);
+                        const targets = new Set();
+                        while(targets.size < ba_m && targets.size < i) {
+                            let r = Math.random() * totalDegree;
+                            for(let j=0; j<i; j++) {
+                                r -= nodeDegrees[j];
+                                if(r <= 0) {
+                                    if (!targets.has(j)) targets.add(j);
+                                    break;
+                                }
+                            }
+                        }
+                        if (targets.size === 0 && i > 0) targets.add(Math.floor(Math.random() * i));
+                        targets.forEach(target_node => {
+                            this.graph.edges.push({ source: i, target: target_node });
+                            nodeDegrees[i]++; nodeDegrees[target_node]++; totalDegree+=2;
+                        });
+                    }
+                }
+                generateWattsStrogatz() {
+                    const { nodes, ws_k, ws_p } = this.params;
+                    this.graph = { nodes: [], edges: [] };
+                    for (let i = 0; i < nodes; i++) {
+                        const angle = (i / nodes) * 2 * Math.PI;
+                        this.graph.nodes.push({ id: i, position: new THREE.Vector3(30 * Math.cos(angle), 30 * Math.sin(angle), 0), velocity: new THREE.Vector3(), force: new THREE.Vector3() });
+                    }
+                    const edges = new Set();
+                    for (let i = 0; i < nodes; i++) {
+                        for (let j = 1; j <= ws_k / 2; j++) {
+                            const target = (i + j) % nodes;
+                            const edgeKey = i < target ? `${i}-${target}` : `${target}-${i}`;
+                            edges.add(edgeKey);
+                        }
+                    }
+                    const newEdges = [];
+                    edges.forEach(key => {
+                        const [u, v] = key.split('-').map(Number);
+                        if (Math.random() < ws_p) {
+                            let w;
+                            do { w = Math.floor(Math.random() * nodes); } while (w === u || edges.has(u < w ? `${u}-${w}` : `${w}-${u}`));
+                            const newEdgeKey = u < w ? `${u}-${w}` : `${w}-${u}`;
+                            edges.add(newEdgeKey);
+                            newEdges.push({ source: u, target: w });
+                        } else {
+                            newEdges.push({ source: u, target: v });
+                        }
+                    });
+                    this.graph.edges = newEdges;
+                }
+                generateGrid2D() {
+                    const { grid_w, grid_h } = this.params;
+                    this.graph = { nodes: [], edges: [] };
+                    let id = 0;
+                    for (let i = 0; i < grid_h; i++) {
+                        for (let j = 0; j < grid_w; j++) {
+                            this.graph.nodes.push({ id: id++, position: new THREE.Vector3(j * 4 - (grid_w-1)*2, i * 4 - (grid_h-1)*2, 0), velocity: new THREE.Vector3(), force: new THREE.Vector3() });
+                        }
+                    }
+                    for (let i = 0; i < grid_h; i++) {
+                        for (let j = 0; j < grid_w; j++) {
+                            if (j < grid_w - 1) this.graph.edges.push({ source: i * grid_w + j, target: i * grid_w + j + 1 });
+                            if (i < grid_h - 1) this.graph.edges.push({ source: i * grid_w + j, target: (i + 1) * grid_w + j });
+                        }
+                    }
+                }
+                generateRingLattice() {
+                    const { nodes, ring_k } = this.params;
+                    this.graph = { nodes: [], edges: [] };
+                    for (let i = 0; i < nodes; i++) {
+                        const angle = (i / nodes) * 2 * Math.PI;
+                        this.graph.nodes.push({ id: i, position: new THREE.Vector3(30 * Math.cos(angle), 30 * Math.sin(angle), 0), velocity: new THREE.Vector3(), force: new THREE.Vector3() });
+                    }
+                    for (let i = 0; i < nodes; i++) {
+                        for (let j = 1; j <= ring_k / 2; j++) {
+                            this.graph.edges.push({ source: i, target: (i + j) % nodes });
+                        }
+                    }
+                }
+                calculateNodeDegrees() {
+                    this.graph.nodes.forEach(n => n.degree = 0);
+                    this.graph.edges.forEach(e => { this.graph.nodes[e.source].degree++; this.graph.nodes[e.target].degree++; });
+                    const degrees = this.graph.nodes.map(n => n.degree).filter(d => d > 0);
+                    if(degrees.length > 0) {
+                        this.minDegree = Math.min(...degrees);
+                        this.maxDegree = Math.max(...degrees);
+                    } else {
+                        this.minDegree = 0; this.maxDegree = 0;
+                    }
+                }
+                calculateComponents() {
+                    const adj = new Map();
+                    this.graph.nodes.forEach(n => adj.set(n.id, []));
+                    this.graph.edges.forEach(e => { adj.get(e.source).push(e.target); adj.get(e.target).push(e.source); });
+                    const visited = new Set();
+                    let componentId = 0;
+                    const componentSizes = [];
+                    this.graph.nodes.forEach(node => {
+                        if (!visited.has(node.id)) {
+                            let currentSize = 0;
+                            const q = [node.id];
+                            visited.add(node.id);
+                            while(q.length > 0) {
+                                const u = q.shift();
+                                currentSize++;
+                                this.graph.nodes[u].component = componentId;
+                                adj.get(u).forEach(v => { if(!visited.has(v)) { visited.add(v); q.push(v); }});
+                            }
+                            componentSizes.push({id: componentId, size: currentSize});
+                            componentId++;
+                        }
+                    });
+                    componentSizes.sort((a,b) => b.size - a.size);
+                    const rankMap = new Map();
+                    componentSizes.forEach((c, i) => rankMap.set(c.id, i));
+                    this.graph.nodes.forEach(n => n.component = rankMap.get(n.component));
+                }
+                updateVisuals() {
+                    const { colorMode, sizeMode, saturation, minNodeSize, maxNodeSize, edgeOpacity } = this.params;
+                    const degreeRange = Math.max(1, this.maxDegree - this.minDegree);
+                    for(let i = 0; i < this.nodeObjects.length; i++) {
+                        const node = this.graph.nodes[i];
+                        const nodeObject = this.nodeObjects[i];
+                        let hue = 0.55;
+                        if (colorMode === 'degree') hue = 0.7 - ((node.degree - this.minDegree) / degreeRange) * 0.7;
+                        else if (colorMode === 'component') hue = (node.component * 0.13) % 1;
+                        nodeObject.material.color.setHSL(hue, saturation, 0.6);
+                        let scale = (minNodeSize + maxNodeSize) / 2;
+                        if (sizeMode === 'degree' && degreeRange > 0) {
+                            const sizeRatio = (node.degree - this.minDegree) / degreeRange;
+                            scale = minNodeSize + (maxNodeSize - minNodeSize) * sizeRatio;
+                        }
+                        nodeObject.scale.set(scale, scale, scale);
+                    }
+                    this.edgeObjects.forEach(edge => {
+                        const {source, target} = edge.userData.edge;
+                        const isPathEdge = this.highlightedPathSet && this.highlightedPathSet.has(source) && this.highlightedPathSet.has(target) && (Math.abs(this.highlightedPath.indexOf(source) - this.highlightedPath.indexOf(target)) === 1);
+                        edge.material.opacity = isPathEdge ? 1.0 : edgeOpacity;
+                    });
+                }
+                toggleComponentVisibility() {
+                    this.mainComponentOnly = !this.mainComponentOnly;
+                    if(this.mainComponentOnly) {
+                        this.nodeObjects.forEach(n => n.visible = n.userData.node.component === 0);
+                        this.edgeObjects.forEach(e => { e.visible = this.graph.nodes[e.userData.edge.source].component === 0; });
+                    } else {
+                        this.nodeObjects.forEach(n => n.visible = true);
+                        this.edgeObjects.forEach(e => e.visible = true);
+                    }
+                }
+                findShortestPath(startNodeId, endNodeId) {
+                    const adj = new Map();
+                    this.graph.nodes.forEach(n => adj.set(n.id, []));
+                    this.graph.edges.forEach(e => { adj.get(e.source).push(e.target); adj.get(e.target).push(e.source); });
+                    const q = [[startNodeId]]; const visited = new Set([startNodeId]);
+                    while (q.length > 0) {
+                        const path = q.shift(); const u = path[path.length - 1];
+                        if (u === endNodeId) return path;
+                        for (const v of adj.get(u)) if (!visited.has(v)) { visited.add(v); const newPath = [...path, v]; q.push(newPath); }
+                    }
+                    return [];
+                }
+                highlightPath(path) {
+                    this.highlightedPath = path;
+                    this.highlightedPathSet = new Set(path);
+                    this.nodeObjects.forEach((obj) => { obj.material.emissive.setHex(this.highlightedPathSet.has(obj.userData.node.id) ? 0xffaa00 : 0x000000); });
+                    this.updateVisuals();
+                }
+                clearCodingTree() { if (this.codingTree) this.container.remove(this.codingTree); this.codingTree = null; document.getElementById('context-display').classList.add('hidden'); }
+                visualizeCodingTree(type) {
+                    this.clearCodingTree();
+                    const frequencies = new Map();
+                    this.graph.nodes.forEach(n => { if (n.degree > 0) frequencies.set(`d${n.degree}`, (frequencies.get(`d${n.degree}`) || 0) + 1); });
+                    if(frequencies.size === 0) return;
+                    let treeRoot, codes;
+                    if(type === 'huffman') [treeRoot, codes] = this.buildHuffmanTree(frequencies);
+                    else [treeRoot, codes] = this.buildShannonFanoTree(frequencies);
+                    this.codingTree = new THREE.Group();
+                    const treeDepth = this.getTreeDepth(treeRoot);
+                    this.layoutAndDrawTree(treeRoot, 0, 40, 0, 80 / Math.pow(2, treeDepth), 10);
+                    this.container.add(this.codingTree);
+                    let codesText = `\\text{${type.charAt(0).toUpperCase() + type.slice(1)} Codes:}\\\\`;
+                    const sortedCodes = [...codes.entries()].sort();
+                    sortedCodes.forEach(([char, code]) => codesText += `\\text{${char}: } ${code}\\\\`);
+                    renderStaticEquation('context-display', codesText);
+                }
+                layoutAndDrawTree(node, x, y, z, xSpread, ySpread) {
+                    if (!node) return;
+                    const mat = new THREE.MeshPhongMaterial({color: node.char ? 0x00aaff : 0xffffff});
+                    const geo = new THREE.SphereGeometry(node.char ? 1 : 0.4, 16, 16);
+                    const mesh = new THREE.Mesh(geo, mat);
+                    mesh.position.set(x,y,z);
+                    this.codingTree.add(mesh);
+                    if(node.left) {
+                        const childX = x - xSpread; const childY = y - ySpread;
+                        const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x,y,z), new THREE.Vector3(childX, childY, z)]), new THREE.LineBasicMaterial({color: 0xcccccc}));
+                        this.codingTree.add(line);
+                        this.layoutAndDrawTree(node.left, childX, childY, z, xSpread / 2, ySpread);
+                    }
+                    if(node.right) {
+                        const childX = x + xSpread; const childY = y - ySpread;
+                        const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x,y,z), new THREE.Vector3(childX, childY, z)]), new THREE.LineBasicMaterial({color: 0xcccccc}));
+                        this.codingTree.add(line);
+                        this.layoutAndDrawTree(node.right, childX, childY, z, xSpread / 2, ySpread);
+                    }
+                }
+                getTreeDepth(node) { if (!node) return 0; return 1 + Math.max(this.getTreeDepth(node.left), this.getTreeDepth(node.right)); }
+                buildHuffmanTree(freqMap) {
+                    const pq = [...freqMap.entries()].map(([char, freq]) => ({ char, freq, left: null, right: null }));
+                    pq.sort((a,b) => a.freq - b.freq);
+                    if (pq.length === 1) return [pq[0], new Map([[pq[0].char, "0"]])];
+                    while(pq.length > 1) {
+                        const left = pq.shift(); const right = pq.shift();
+                        const parent = { char: null, freq: left.freq + right.freq, left, right };
+                        let i = 0;
+                        while(i < pq.length && pq[i].freq < parent.freq) i++;
+                        pq.splice(i, 0, parent);
+                    }
+                    const root = pq[0]; const codes = new Map();
+                    function getCodes(node, code) { if(node) { if(node.char) codes.set(node.char, code || "0"); getCodes(node.left, code + "0"); getCodes(node.right, code + "1"); } }
+                    getCodes(root, "");
+                    return [root, codes];
+                }
+                buildShannonFanoTree(freqMap) {
+                    const sortedFreqs = [...freqMap.entries()].sort((a,b) => b[1] - a[1]);
+                    const codes = new Map();
+                    const build = (sublist, code) => {
+                        if (sublist.length === 0) return null;
+                        if (sublist.length === 1) {
+                            codes.set(sublist[0][0], code || "0");
+                            return { char: sublist[0][0], freq: sublist[0][1], left: null, right: null };
+                        }
+                        let splitIndex = 0, totalSum = sublist.reduce((s,i) => s + i[1], 0);
+                        let leftSum = 0;
+                        for(let i=0; i<sublist.length; i++) {
+                            if (leftSum + sublist[i][1] > totalSum / 2 && i > 0) break;
+                            leftSum += sublist[i][1];
+                            splitIndex = i + 1;
+                        }
+                        const left = build(sublist.slice(0, splitIndex), code + "0");
+                        const right = build(sublist.slice(splitIndex), code + "1");
+                        return {char: null, freq: left.freq + (right ? right.freq : 0), left, right};
+                    }
+                    const root = build(sortedFreqs, "");
+                    return [root, codes];
+                }
+                handleMouseDown(event) {
+                    this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1; this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+                    this.raycaster.setFromCamera(this.mouse, this.camera);
+                    const intersects = this.raycaster.intersectObjects(this.nodeObjects);
+                    if (intersects.length > 0) {
+                        const clickedNodeObject = intersects[0].object;
+                        if (!clickedNodeObject.visible) return;
+                        this.controls.enabled = false;
+                        this.draggedNode = clickedNodeObject.userData.node;
+                        const infoEl = document.getElementById('path-info');
+                        const selectedId = this.draggedNode.id;
+                        if (this.selectedNodes.length === 0) {
+                            this.selectedNodes.push(selectedId);
+                            infoEl.textContent = `Node ${selectedId} selected. Click another.`;
+                            this.highlightPath([selectedId]);
+                        } else if (this.selectedNodes.length === 1) {
+                            if (this.selectedNodes[0] === selectedId) {
+                                this.selectedNodes = [];
+                                infoEl.textContent = `Selection cleared. Click 2 nodes...`;
+                                this.highlightPath([]);
+                            } else {
+                                this.selectedNodes.push(selectedId);
+                                const [start, end] = this.selectedNodes;
+                                const path = this.findShortestPath(start, end);
+                                if (path.length > 0) {
+                                    infoEl.textContent = `Path found! Length: ${path.length - 1}`;
+                                    this.highlightPath(path);
+                                } else {
+                                    infoEl.textContent = `No path between node ${start} and ${end}.`;
+                                    this.highlightPath([]);
+                                }
+                                this.selectedNodes = [];
+                            }
+                        }
+                    }
+                }
+                handleMouseMove(event) {
+                    if (!this.draggedNode) return;
+                    this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1; this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+                    this.raycaster.setFromCamera(this.mouse, this.camera);
+                    this.plane.setFromNormalAndCoplanarPoint(this.camera.getWorldDirection(this.plane.normal), this.draggedNode.position);
+                    const intersection = new THREE.Vector3();
+                    this.raycaster.ray.intersectPlane(this.plane, intersection);
+                    if(intersection) {
+                        this.draggedNode.position.copy(intersection);
+                        this.draggedNode.velocity.set(0,0,0);
+                    }
+                }
+                handleMouseUp() {
+                    this.controls.enabled = true;
+                    if (this.draggedNode) {
+                        this.draggedNode.velocity.set(0,0,0);
+                        this.draggedNode = null;
+                    }
+                }
+                destroy() {
+                    this.scene.remove(this.container);
+                    this.container.traverse(child => {
+                        if (child.isMesh || child.isLine) {
+                            if (child.geometry) child.geometry.dispose();
+                            if (child.material) {
+                                if(Array.isArray(child.material)) {
+                                    child.material.forEach(material => material.dispose());
+                                } else {
+                                    child.material.dispose();
+                                }
+                            }
+                        }
+                    });
+                    this.container.clear();
+                }
+            }
+            
+            function initializeVisualizer() {
+                scene = new THREE.Scene();
+                camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setPixelRatio(window.devicePixelRatio);
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.outputColorSpace = THREE.SRGBColorSpace;
+                document.body.appendChild(renderer.domElement);
+                scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                dirLight.position.set(5, 10, 7.5);
+                scene.add(dirLight);
+                controls = new OrbitControls(camera, renderer.domElement);
+                controls.enableDamping = true;
+                populateControls();
+                setupEventListeners();
+                document.getElementById('mode-gearing').checked = true;
+                handleModeChange({ target: { value: 'gearing' } }); 
+                animate();
+            }
+            
+            function populateControls() {
+                // Oscillator Controls
+                document.getElementById('oscillator-controls').innerHTML = `
+                    <div class="control-group"> <h4>Physics</h4>
+                        <label>Mass (a): <span id="osc-a-val">1.0</span></label><input type="range" id="coeff-a" min="0.1" max="5" step="0.1" value="1.0">
+                        <label>Damping (b): <span id="osc-b-val">0.1</span></label><input type="range" id="coeff-b" min="0" max="2" step="0.05" value="0.1">
+                        <label>Spring (c): <span id="osc-c-val">5.0</span></label><input type="range" id="coeff-c" min="0.1" max="20" step="0.1" value="5.0">
+                    </div>
+                    <div class="control-group"> <h4>Forcing Function</h4>
+                        <div class="forcing-options">
+                            <input type="radio" name="force-type" value="none"> None 
+                            <input type="radio" name="force-type" value="sin"> Sin 
+                            <input type="radio" name="force-type" value="cos"> Cos 
+                            <input type="radio" name="force-type" value="square"> Square 
+                            <input type="radio" name="force-type" value="dirichlet" checked> Dirichlet η(s)
+                            <input type="radio" name="force-type" value="zeta"> Riemann ζ(s)
+                        </div>
+                        <div class="forcing-options"><input type="checkbox" id="inverse-force"> Inverse f(t)</div>
+                        <div class="control-group hidden" id="force-amp-group"><label>Amplitude: <span id="force-amp-val">1.0</span></label><input type="range" id="force-amp" min="0" max="10" step="0.1" value="1.0"></div>
+                        <div class="control-group hidden" id="force-freq-group"><label>Frequency (ω): <span id="force-freq-val">1.0</span></label><input type="range" id="force-freq" min="0.1" max="10" step="0.1" value="1.0"><div class="button-group"><button class="freq-btn" data-val="${Math.PI/2}">π/2</button><button class="freq-btn" data-val="${Math.PI}">π</button><button class="freq-btn" data-val="${Math.PI*2}">2π</button></div></div>
+                    </div>
+                    <div class="control-group"> <h4>Simulation</h4>
+                        <label>Time Step (dt): <span id="osc-dt-val">0.010</span></label><input type="range" id="osc-dt" min="0.001" max="0.05" step="0.001" value="0.01">
+                        <label>Trail Length: <span id="osc-trail-val">2000</span></label><input type="range" id="osc-trail" min="100" max="10000" step="100" value="2000">
+                        <div class="control-group hidden" id="series-quality-group">
+                            <label>Series Quality: <span id="osc-series-terms-val">50</span></label><input type="range" id="osc-series-terms" min="10" max="200" step="5" value="50">
+                        </div>
+                    </div>`;
+                // Chaotic Systems Controls
+                 document.getElementById('chaotic-controls').innerHTML = `
+                    <div class="control-group"> <h4>System</h4>
+                        <label>Attractor Type:</label>
+                        <select id="chaotic-type">
+                            <option value="lorentz">Lorentz</option>
+                            <option value="aizawa">Aizawa</option>
+                            <option value="duffing">Duffing Map</option>
+                        </select>
+                    </div>
+                    <div class="control-group"> <h4>Parameters</h4>
+                        <div id="lorentz-params">
+                            <label>Sigma (σ): <span id="chaos-sigma-val">10.0</span></label><input type="range" id="chaos-sigma" min="0" max="50" step="0.1" value="10">
+                            <label>Rho (ρ): <span id="chaos-rho-val">28.0</span></label><input type="range" id="chaos-rho" min="0" max="50" step="0.1" value="28">
+                            <label>Beta (β): <span id="chaos-beta-val">2.67</span></label><input type="range" id="chaos-beta" min="0" max="5" step="0.01" value="2.6667">
+                        </div>
+                        <div id="aizawa-params" class="hidden">
+                            <label>a: <span id="chaos-a-val">0.95</span></label><input type="range" id="chaos-a" min="0" max="2" step="0.01" value="0.95">
+                            <label>b: <span id="chaos-b-val">0.7</span></label><input type="range" id="chaos-b" min="0" max="2" step="0.01" value="0.7">
+                            <label>c: <span id="chaos-c-val">0.6</span></label><input type="range" id="chaos-c" min="0" max="2" step="0.01" value="0.6">
+                            <label>d: <span id="chaos-d-val">3.5</span></label><input type="range" id="chaos-d" min="0" max="5" step="0.01" value="3.5">
+                            <label>e: <span id="chaos-e-val">0.25</span></label><input type="range" id="chaos-e" min="0" max="1" step="0.01" value="0.25">
+                            <label>f: <span id="chaos-f-val">0.1</span></label><input type="range" id="chaos-f" min="0" max="1" step="0.01" value="0.1">
+                        </div>
+                        <div id="duffing-params" class="hidden">
+                           <label>Alpha (α): <span id="chaos-alpha-val">1.0</span></label><input type="range" id="chaos-alpha" min="-2" max="2" step="0.05" value="1.0">
+                           <label>Beta (β): <span id="chaos-beta-duff-val">-1.0</span></label><input type="range" id="chaos-beta-duff" min="-2" max="2" step="0.05" value="-1.0">
+                           <label>Delta (δ): <span id="chaos-delta-val">0.3</span></label><input type="range" id="chaos-delta" min="0" max="1" step="0.01" value="0.3">
+                           <label>Gamma (γ): <span id="chaos-gamma-val">0.2</span></label><input type="range" id="chaos-gamma" min="0" max="1" step="0.01" value="0.2">
+                           <label>Omega (ω): <span id="chaos-omega-val">1.2</span></label><input type="range" id="chaos-omega" min="0" max="2" step="0.01" value="1.2">
+                        </div>
+                    </div>
+                     <div class="control-group"> <h4>Simulation</h4>
+                        <label>Time Step (dt): <span id="chaos-dt-val">0.01</span></label><input type="range" id="chaos-dt" min="0.001" max="0.02" step="0.001" value="0.01">
+                        <label>Trail Length: <span id="chaos-trail-val">5000</span></label><input type="range" id="chaos-trail" min="500" max="20000" step="100" value="5000">
+                    </div>`;
+                // Quantum Mechanics Controls
+                document.getElementById('quantum-controls').innerHTML = `
+                    <div class="control-group"> <h4>System</h4>
+                        <select id="quantum-type">
+                            <option value="box">1D Infinite Well</option>
+                            <option value="qho">Quantum Harmonic Oscillator</option>
+                            <option value="tunneling">Quantum Tunneling</option>
+                            <option value="box2d">2D Infinite Well</option>
+                            <option value="hydrogen">Hydrogen Orbital (3D)</option>
+                        </select>
+                    </div>
+                    <div id="q-1d-box-params" class="control-group"> <h4>1D Well Params</h4>
+                        <label>Well Width (L): <span id="quantum-L-val">10</span></label><input type="range" id="quantum-L" min="1" max="30" step="0.5" value="10">
+                        <label>Energy Level (n): <span id="quantum-n-box-val">3</span></label><input type="range" id="quantum-n-box" min="1" max="20" step="1" value="3">
+                    </div>
+                    <div id="q-qho-params" class="control-group hidden"> <h4>QHO Params</h4>
+                        <label>Energy Level (n): <span id="quantum-n-qho-val">2</span></label><input type="range" id="quantum-n-qho" min="0" max="20" step="1" value="2">
+                    </div>
+                    <div id="q-tunnel-params" class="control-group hidden"> <h4>Tunneling Params</h4>
+                        <label>Particle Energy (E): <span id="quantum-energy-val">3</span></label><input type="range" id="quantum-energy" min="0.1" max="10" step="0.1" value="3">
+                        <label>Barrier Height (V₀): <span id="quantum-barrier-h-val">5</span></label><input type="range" id="quantum-barrier-h" min="1" max="15" step="0.5" value="5">
+                        <label>Barrier Width: <span id="quantum-barrier-w-val">2</span></label><input type="range" id="quantum-barrier-w" min="0.5" max="5" step="0.1" value="2">
+                    </div>
+                    <div id="q-2d-box-params" class="control-group hidden"> <h4>2D Well Params</h4>
+                        <label>nx: <span id="quantum-nx-val">1</span></label><input type="range" id="quantum-nx" min="1" max="10" step="1" value="1">
+                        <label>ny: <span id="quantum-ny-val">1</span></label><input type="range" id="quantum-ny" min="1" max="10" step="1" value="1">
+                    </div>
+                    <div id="q-hyd-params" class="control-group hidden"> <h4>Hydrogen Params</h4>
+                        <label>n: <span id="quantum-n-hyd-val">3</span></label><input type="range" id="quantum-n-hyd" min="1" max="10" step="1" value="3">
+                        <label>l: <span id="quantum-l-hyd-val">1</span></label><input type="range" id="quantum-l-hyd" min="0" max="9" step="1" value="1">
+                        <label>m: <span id="quantum-m-hyd-val">0</span></label><input type="range" id="quantum-m-hyd" min="-9" max="9" step="1" value="0">
+                    </div>`;
+                // Heat Field Controls
+                document.getElementById('heat3d-controls').innerHTML = `
+                    <div class="control-group"> <h4>Grid & Source</h4>
+                        <label>Grid Size: <span id="heat-grid-size-val">20</span></label><input type="range" id="heat-grid-size" min="10" max="50" step="2" value="20">
+                        <label>Source X: <span id="heat-x-val">10</span></label><input type="range" id="heat-x" min="1" max="48" step="1" value="10">
+                        <label>Source Y: <span id="heat-y-val">10</span></label><input type="range" id="heat-y" min="1" max="48" step="1" value="10">
+                        <label>Source Z: <span id="heat-z-val">10</span></label><input type="range" id="heat-z" min="1" max="48" step="1" value="10">
+                    </div>
+                    <div class="control-group"> <h4>Physics</h4>
+                        <label>Thermal Diffusivity (α): <span id="heat-alpha-val">0.1</span></label><input type="range" id="coeff-alpha" min="0.01" max="0.2" step="0.01" value="0.1">
+                        <label>Initial Temperature: <span id="heat-temp-val">100</span></label><input type="range" id="heat-temp" min="10" max="500" step="10" value="100">
+                        <label>Source Sharpness: <span id="heat-sharp-val">8</span></label><input type="range" id="heat-sharp" min="1" max="50" step="1" value="8">
+                    </div>
+                    <div class="control-group"> <h4>Appearance</h4>
+                        <label>Particle Size: <span id="heat-particle-val">0.5</span></label><input type="range" id="heat-particle" min="0.1" max="2.0" step="0.1" value="0.5">
+                    </div>`;
+                 // Gas Dispersion Controls
+                document.getElementById('gas-controls').innerHTML = `
+                    <div class="control-group"> <h4>Grid & Pump</h4>
+                        <label>Grid Size: <span id="gas-grid-size-val">20</span></label><input type="range" id="gas-grid-size" min="10" max="50" step="2" value="20">
+                        <label>Pump X: <span id="gas-x-val">10</span></label><input type="range" id="gas-x" min="1" max="48" step="1" value="10">
+                        <label>Pump Y: <span id="gas-y-val">10</span></label><input type="range" id="gas-y" min="1" max="48" step="1" value="10">
+                        <label>Pump Z: <span id="gas-z-val">10</span></label><input type="range" id="gas-z" min="1" max="48" step="1" value="10">
+                    </div>
+                     <div class="control-group"> <h4>Physics</h4>
+                        <label>Diffusion Rate: <span id="gas-diffusion-val">0.1</span></label><input type="range" id="gas-diffusion" min="0.01" max="0.2" step="0.01" value="0.1">
+                        <label>Pump Rate: <span id="gas-pump-rate-val">5.0</span></label><input type="range" id="gas-pump-rate" min="0.1" max="20" step="0.1" value="5.0">
+                    </div>
+                `;
+                // Wave & Beach Controls
+                 document.getElementById('wave-controls').innerHTML = `
+                     <div class="control-group"> <h4>Wave Controls</h4>
+                        <label>Amplitude: <span id="wave-amplitude-val">0.8</span></label><input type="range" id="wave-amplitude" min="0.01" max="2.0" step="0.01" value="0.8">
+                        <label>Frequency: <span id="wave-frequency-val">1.5</span></label><input type="range" id="wave-frequency" min="0.1" max="5.0" step="0.1" value="1.5">
+                        <label>Speed: <span id="wave-speed-val">0.5</span></label><input type="range" id="wave-speed" min="0.1" max="3.0" step="0.1" value="0.5">
+                     </div>
+                     <div class="control-group"> <h4>Shore Controls</h4>
+                        <label>Left Push Power: <span id="wave-push-power-val">0.1</span></label><input type="range" id="wave-push-power" min="0.0" max="0.5" step="0.01" value="0.1">
+                    </div>
+                 `;
+                // Laplace / Control Theory Controls
+                document.getElementById('laplace-controls').innerHTML = `
+                    <div class="control-group"> <h4>Filter / Function Type</h4>
+                        <select id="laplace-func">
+                            <option value="butterworth">Butterworth Filter</option>
+                            <option value="chebyshev">Chebyshev Filter</option>
+                        </select>
+                        <label>Filter Order (n): <span id="laplace-order-val">3</span></label><input type="range" id="laplace-order" min="1" max="10" step="1" value="3">
+                        <div id="cheby-controls">
+                           <label>Passband Ripple (ε): <span id="laplace-epsilon-val">0.5</span></label><input type="range" id="laplace-epsilon" min="0.1" max="1" step="0.05" value="0.5">
+                        </div>
+                    </div>
+                    <div class="control-group"> <h4>View Port & Quality</h4>
+                         <label>View Mode:</label>
+                         <select id="laplace-view">
+                            <option value="log_magnitude">Log Magnitude (dB)</option>
+                            <option value="phase">Phase</option>
+                            <option value="real">Real Part</option>
+                         </select>
+                         <label>Plot Range (Re/Im): <span id="laplace-range-val">2</span></label><input type="range" id="laplace-range" min="1" max="20" step="1" value="2">
+                         <label>Vertical Scale: <span id="laplace-vscale-val">10</span></label><input type="range" id="laplace-vscale" min="1" max="50" step="1" value="10">
+                        <label>Grid Resolution: <span id="laplace-res-val">80</span></label><input type="range" id="laplace-res" min="20" max="200" step="10" value="80">
+                    </div>
+                `;
+                 // Signal Processing Controls
+                document.getElementById('signal-controls').innerHTML = `
+                     <div class="control-group"> <h4>Waveform / Codec</h4>
+                        <select id="signal-type">
+                            <option value="am">Amplitude Modulation (AM)</option>
+                            <option value="fm">Frequency Modulation (FM)</option>
+                             <option value="pwm">Pulse-Width Modulation (PWM)</option>
+                             <option value="sawtooth">Sawtooth Wave</option>
+                             <option value="triangle">Triangle Wave</option>
+                            <option value="mu-law">μ-Law Companding</option>
+                            <option value="a-law">A-Law Companding</option>
+                        </select>
+                    </div>
+                    <div class="control-group" id="signal-mod-controls"> <h4>Modulation</h4>
+                        <label>Carrier Freq (ωc): <span id="signal-carrier-val">10.0</span></label><input type="range" id="signal-carrier" min="1" max="50" step="0.5" value="10">
+                        <label id="signal-mod-freq-label">Modulation Freq (ωm): <span id="signal-mod-val">1.0</span></label><input type="range" id="signal-mod" min="0.1" max="10" step="0.1" value="1">
+                        <label id="signal-mod-index-label">Modulation Index (β): <span id="signal-index-val">0.5</span></label><input type="range" id="signal-index" min="0" max="5" step="0.1" value="0.5">
+                         <label id="signal-duty-cycle-label" class="hidden">Duty Cycle: <span id="signal-duty-val">0.5</span></label><input type="range" id="signal-duty" min="0.05" max="0.95" step="0.05" value="0.5">
+                    </div>
+                    <div class="control-group hidden" id="signal-comp-controls"> <h4>Companding</h4>
+                         <label>μ Value: <span id="signal-mu-val">255</span></label><input type="range" id="signal-mu" min="1" max="300" step="1" value="255">
+                         <label>A Value: <span id="signal-A-val">87.6</span></label><input type="range" id="signal-A" min="1" max="100" step="0.1" value="87.6">
+                    </div>`;
+                // Stress Tensor Controls
+                document.getElementById('stress-controls').innerHTML = `
+                    <div class="control-group"> <h4>Normal Stresses</h4>
+                        <label>σ_xx: <span id="stress-xx-val">5</span></label><input type="range" id="stress-xx" min="-10" max="10" step="0.5" value="5">
+                        <label>σ_yy: <span id="stress-yy-val">-3</span></label><input type="range" id="stress-yy" min="-10" max="10" step="0.5" value="-3">
+                        <label>σ_zz: <span id="stress-zz-val">2</span></label><input type="range" id="stress-zz" min="-10" max="10" step="0.5" value="2">
+                    </div>
+                    <div class="control-group"> <h4>Shear Stresses</h4>
+                        <label>τ_xy: <span id="stress-xy-val">4</span></label><input type="range" id="stress-xy" min="-10" max="10" step="0.5" value="4">
+                        <label>τ_yz: <span id="stress-yz-val">-2</span></label><input type="range" id="stress-yz" min="-10" max="10" step="0.5" value="-2">
+                        <label>τ_zx: <span id="stress-zx-val">1</span></label><input type="range" id="stress-zx" min="-10" max="10" step="0.5" value="1">
+                    </div>
+                    <div class="control-group"> <h4>Visualization</h4>
+                        <div class="checkbox-group"><input type="checkbox" id="stress-show-principal" checked><label for="stress-show-principal">Show Principal Stresses</label></div>
+                        <div class="checkbox-group"><input type="checkbox" id="stress-show-mohr" checked><label for="stress-show-mohr">Show Mohr's Circles</label></div>
+                    </div>
+                `;
+                 // Tribology Controls
+                document.getElementById('tribology-controls').innerHTML = `
+                    <div class="control-group"> <h4>System Parameters</h4>
+                        <label>Plane Angle (θ): <span id="tribo-angle-val">20</span>°</label><input type="range" id="tribo-angle" min="0" max="90" step="1" value="20">
+                        <label>Block Mass (m): <span id="tribo-mass-val">1.0</span> kg</label><input type="range" id="tribo-mass" min="0.1" max="5" step="0.1" value="1.0">
+                    </div>
+                     <div class="control-group"> <h4>Friction Coefficients</h4>
+                        <label>Static Friction (μ_s): <span id="tribo-mus-val">0.4</span></label><input type="range" id="tribo-mus" min="0" max="1.5" step="0.05" value="0.4">
+                        <label>Kinetic Friction (μ_k): <span id="tribo-muk-val">0.3</span></label><input type="range" id="tribo-muk" min="0" max="1.5" step="0.05" value="0.3">
+                    </div>
+                    <div class="control-group"> <h4>Simulation</h4>
+                        <button id="tribo-reset-btn">Reset Simulation</button>
+                    </div>
+                `;
+                // Gearing Controls
+                document.getElementById('gearing-controls').innerHTML = `
+                    <div class="control-group"><h4>Input</h4>
+                        <label>Input Type</label><select id="gear-input-type"><option value="constant">Constant Torque</option><option value="sine">Sine Wave</option></select>
+                        <div id="gear-const-torque-group"><label>Input Torque (Nm): <span id="gear-torque-val">5.0</span></label><input type="range" id="gear-torque" min="0" max="50" step="0.5" value="5"></div>
+                        <div id="gear-sine-torque-group" class="hidden">
+                            <label>Amplitude (Nm): <span id="gear-sine-amp-val">10</span></label><input type="range" id="gear-sine-amp" min="1" max="50" step="1" value="10">
+                            <label>Frequency (Hz): <span id="gear-sine-freq-val">0.5</span></label><input type="range" id="gear-sine-freq" min="0.1" max="5" step="0.1" value="0.5">
+                        </div>
+                    </div>
+                    <div class="control-group"><h4>Gears</h4>
+                        <label>Drive Teeth: <span id="gear-drive-teeth-val">30</span></label><input type="range" id="gear-drive-teeth" min="10" max="60" step="1" value="30">
+                        <label>Idler Teeth: <span id="gear-idler-teeth-val">15</span></label><input type="range" id="gear-idler-teeth" min="10" max="60" step="1" value="15">
+                        <label>Output Teeth: <span id="gear-output-teeth-val">45</span></label><input type="range" id="gear-output-teeth" min="10" max="80" step="1" value="45">
+                    </div>
+                    <div class="control-group"><h4>Physics & Material</h4>
+                        <label>System Inertia (Drive): <span id="gear-inertia-val">0.1</span></label><input type="range" id="gear-inertia" min="0.01" max="1" step="0.01" value="0.1">
+                        <label>Frictional Loss: <span id="gear-friction-val">0.05</span></label><input type="range" id="gear-friction" min="0" max="0.5" step="0.01" value="0.05">
+                        <label>Resistive Load (Output): <span id="gear-load-val">2.0</span></label><input type="range" id="gear-load" min="0" max="20" step="0.5" value="2">
+                        <label>Material</label><select id="gear-material"><option value="steel">Steel</option><option value="aluminum">Aluminum</option><option value="plastic">Plastic</option></select>
+                    </div>
+                    <div class="control-group"><h4>Output</h4>
+                        <span id="gear-output-readout">Vel: 0.0, Torque: 0.0, Power: 0.0, Eff: 100%</span>
+                    </div>`;
+                // Integral Controls
+                document.getElementById('integral-controls').innerHTML = `<div class="control-group"><label>Function f(x):</label><select id="integral-func"><option value="x_squared">x²</option><option value="sin_x">sin(x)</option><option value="cos_x">cos(x)</option><option value="tan_x">tan(x)</option><option value="exp_x">e<sup>x</sup></option><option value="one_over_x">1/x</option><option value="one_over_one_plus_x_squared">1/(1+x²)</option><option value="ln_x">ln(x)</option><option value="gaussian">e<sup>-x²</sup></option><option value="sinc">sin(x)/x</option><option value="x_sin_x">x*sin(x)</option></select></div><div class="control-group"><label>Bounds:</label><input type="range" id="integral-a" min="-10" max="10" step="0.1" value="-2.0"> <span id="integral-a-val">-2.0</span><input type="range" id="integral-b" min="-10" max="10" step="0.1" value="3.0"> <span id="integral-b-val">3.0</span><div class="checkbox-group"><label><input type="checkbox" id="integral-inf-a"> a = -∞</label><label><input type="checkbox" id="integral-inf-b"> b = +∞</label></div></div><div class="control-group"><label>Method:</label><select id="integral-method"><option value="rectangle">Rectangle</option><option value="trapezoid" selected>Trapezoid</option><option value="simpson">Simpson's Rule</option></select></div><div class="control-group"><label>Steps: <span id="integral-steps-val">100</span></label><input type="range" id="integral-steps" min="4" max="5000" step="2" value="100"></div><div class="control-group"><label>Practical Infinity: <span id="integral-inf-val">50</span></label><input type="range" id="integral-inf" min="10" max="500" step="10" value="50"></div>`;
+                // Network Controls
+                document.getElementById('network-controls').innerHTML = `
+                    <div class="control-group"> <h4>Generation</h4>
+                        <label>Graph Model:</label>
+                        <select id="network-model">
+                            <option value="erdos-renyi" selected>Erdős–Rényi</option>
+                            <option value="barabasi-albert">Barabási–Albert</option>
+                            <option value="watts-strogatz">Watts–Strogatz</option>
+                            <option value="grid-2d">2D Grid</option>
+                            <option value="ring-lattice">Ring Lattice</option>
+                        </select>
+                        <label>Number of Nodes: <span id="network-nodes-val">50</span></label><input type="range" id="network-nodes" min="10" max="200" step="1" value="50">
+                        <div id="prob-control"><label>Edge Probability: <span id="network-prob-val">0.1</span></label><input type="range" id="network-prob" min="0.01" max="0.5" step="0.01" value="0.1"></div>
+                        <div id="ba-controls" class="hidden">
+                            <label>Edges per Node (m): <span id="network-ba-m-val">2</span></label><input type="range" id="network-ba-m" min="1" max="10" value="2">
+                            <label>Initial Nodes (m0): <span id="network-ba-m0-val">3</span></label><input type="range" id="network-ba-m0" min="2" max="20" value="3">
+                        </div>
+                         <div id="ws-controls" class="hidden">
+                            <label>Neighbors (k): <span id="network-ws-k-val">4</span></label><input type="range" id="network-ws-k" min="2" max="20" step="2" value="4">
+                            <label>Rewire Prob (p): <span id="network-ws-p-val">0.2</span></label><input type="range" id="network-ws-p" min="0" max="1" step="0.05" value="0.2">
+                        </div>
+                        <div id="grid-controls" class="hidden">
+                             <label>Grid Width: <span id="network-grid-w-val">10</span></label><input type="range" id="network-grid-w" min="2" max="20" value="10">
+                            <label>Grid Height: <span id="network-grid-h-val">5</span></label><input type="range" id="network-grid-h" min="2" max="20" value="5">
+                        </div>
+                         <div id="ring-controls" class="hidden">
+                            <label>Neighbors (k): <span id="network-ring-k-val">2</span></label><input type="range" id="network-ring-k" min="2" max="20" step="2" value="2">
+                        </div>
+                        <label>Initial Layout:</label><select id="network-layout"><option value="force-directed" selected>Force-Directed</option><option value="random">Random</option><option value="sphere">Spherical</option></select>
+                    </div>
+                    <div class="control-group"> <h4>Appearance</h4>
+                        <label>Color Nodes By:</label><select id="network-color"><option value="none">None</option><option value="degree" selected>Degree</option><option value="component">Component</option></select>
+                        <label>Size Nodes By:</label><select id="network-size"><option value="none">None</option><option value="degree" selected>Degree</option></select>
+                        <label>Node Saturation: <span id="network-saturation-val">0.9</span></label><input type="range" id="network-saturation" min="0" max="1" step="0.05" value="0.9">
+                        <label>Min/Max Node Size: <span id="network-size-range-val">0.5-2.5</span></label><input type="range" id="network-min-size" min="0.1" max="5" step="0.1" value="0.5"> <input type="range" id="network-max-size" min="0.1" max="10" step="0.1" value="2.5">
+                        <label>Edge Opacity: <span id="network-edge-opacity-val">0.3</span></label><input type="range" id="network-edge-opacity" min="0" max="1" step="0.05" value="0.3">
+                    </div>
+                    <div class="control-group"> <h4>Physics</h4>
+                        <label>Repulsion: <span id="network-repulsion-val">1.0</span></label><input type="range" id="network-repulsion" min="0" max="10" step="0.1" value="1.0">
+                        <label>Attraction: <span id="network-attraction-val">0.01</span></label><input type="range" id="network-attraction" min="0" max="0.1" step="0.001" value="0.01">
+                        <label>Ideal Distance: <span id="network-ideal-dist-val">15</span></label><input type="range" id="network-ideal-dist" min="1" max="50" step="1" value="15">
+                        <label>Damping: <span id="network-damping-val">0.95</span></label><input type="range" id="network-damping" min="0.8" max="1.0" step="0.01" value="0.95">
+                    </div>
+                    <div class="control-group"> <h4>Analysis</h4>
+                        <div class="button-group"><button id="shortest-path-btn">Find Path</button><button id="toggle-components-btn">Isolate Main</button></div><span id="path-info">Click 2 nodes to find path.</span>
+                        <label>Coding Trees (from Degrees):</label>
+                        <div class="button-group"><button id="huffman-btn">Huffman</button><button id="shannon-btn">Shannon-Fano</button><button id="clear-tree-btn">Clear</button></div>
+                    </div>`;
+                 // Complex Plane Controls
+                document.getElementById('complex-controls').innerHTML = `
+                    <div class="control-group"> <h4>Function</h4>
+                        <label>Function f(s):</label>
+                        <select id="complex-func">
+                            <option value="zeta">Domain Color: Riemann Zeta ζ(s)</option>
+                            <option value="gamma">Domain Color: Gamma Γ(s)</option>
+                            <option value="nyquist">Nyquist Plot: G(s)</option>
+                        </select>
+                        <div id="nyquist-params" class="hidden">
+                           <label>Pole 1 (a): <span id="complex-p1a-val">1.0</span></label><input type="range" id="complex-p1a" min="0.1" max="5" step="0.1" value="1.0">
+                           <label>Pole 2 (b): <span id="complex-p1b-val">2.0</span></label><input type="range" id="complex-p1b" min="0.1" max="5" step="0.1" value="2.0">
+                           <label>Max Frequency (ω): <span id="complex-omega-val">50</span></label><input type="range" id="complex-omega" min="10" max="500" step="5" value="50">
+                        </div>
+                    </div>
+                    <div class="control-group" id="complex-domain-controls"> <h4>View Port</h4>
+                         <label>Real Axis (Min/Max):</label>
+                         <div><input type="number" id="complex-re-min" value="-20" step="1"> <input type="number" id="complex-re-max" value="20" step="1"></div>
+                         <label>Imaginary Axis (Min/Max):</label>
+                         <div><input type="number" id="complex-im-min" value="-20" step="1"> <input type="number" id="complex-im-max" value="20" step="1"></div>
+                         <label>Resolution: <span id="complex-res-val">100</span></label><input type="range" id="complex-res" min="20" max="500" step="10" value="100">
+                    </div>
+                `;
+            }
+            
+            function setupEventListeners() {
+                document.querySelectorAll('input[name="sim-mode"]').forEach(radio => radio.addEventListener('change', handleModeChange));
+                document.querySelector('.controls-container').addEventListener('input', handleControlInput);
+                const controlsContainer = document.querySelector('.controls-container');
+                
+                controlsContainer.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('freq-btn')) { document.getElementById('force-freq').value = e.target.dataset.val; handleControlInput({target: document.getElementById('force-freq')}); }
+                     if (e.target.id === 'tribo-reset-btn') { resetSimulation(); }
+                    if (!networkSimulator) return;
+                    if (e.target.id === 'shortest-path-btn') { networkSimulator.selectedNodes = []; document.getElementById('path-info').textContent = 'Click 2 nodes...'; networkSimulator.highlightPath([]); }
+                    if (e.target.id === 'toggle-components-btn') { networkSimulator.toggleComponentVisibility(); e.target.textContent = networkSimulator.mainComponentOnly ? 'Show All' : 'Isolate Main';  }
+                    if (e.target.id === 'huffman-btn') networkSimulator.visualizeCodingTree('huffman');
+                    if (e.target.id === 'shannon-btn') networkSimulator.visualizeCodingTree('shannon-fano');
+                    if (e.target.id === 'clear-tree-btn') networkSimulator.clearCodingTree();
+                });
+                
+                renderer.domElement.addEventListener('mousedown', onMouseDown);
+                renderer.domElement.addEventListener('mousemove', onMouseMove);
+                renderer.domElement.addEventListener('mouseup', onMouseUp);
+                window.addEventListener('resize', onWindowResize, false);
+            }
+
+            function handleModeChange(e) {
+                simMode = e.target.value;
+                ['oscillator', 'chaotic', 'quantum', 'heat3d', 'gas', 'wave', 'laplace', 'signal', 'stress', 'tribology', 'gearing', 'integral', 'network', 'complex'].forEach(mode => {
+                    document.getElementById(`${mode}-controls`).classList.toggle('hidden', simMode !== mode);
+                });
+                document.getElementById('equation-display').classList.toggle('hidden', !['oscillator', 'heat3d', 'gas', 'quantum', 'laplace', 'signal', 'stress', 'tribology', 'gearing', 'complex'].includes(simMode));
+                document.getElementById('context-display').classList.add('hidden');
+                resetSimulation();
+            }
+
+            function handleControlInput(e) {
+                if (!e.target) return;
+                const targetId = e.target.id;
+                
+                if (e.target.closest('#oscillator-controls')) { updateOscillatorParams(); resetSimulation(); }
+                else if (e.target.closest('#chaotic-controls')) { updateChaoticParams(); resetSimulation(); }
+                else if (e.target.closest('#quantum-controls')) { updateQuantumParams(); resetSimulation(); }
+                else if (e.target.closest('#heat3d-controls')) { updateHeat3DParams(); resetSimulation(); }
+                else if (e.target.closest('#gas-controls')) { updateGasParams(); resetSimulation(); }
+                else if (e.target.closest('#wave-controls')) { updateWaveParams(); }
+                else if (e.target.closest('#laplace-controls')) { updateLaplaceParams(); resetSimulation(); }
+                else if (e.target.closest('#signal-controls')) { updateSignalParams(); resetSimulation(); }
+                else if (e.target.closest('#stress-controls')) { updateStressParams(); resetSimulation(); }
+                else if (e.target.closest('#tribology-controls')) { updateTribologyParams(); resetSimulation(); }
+                else if (e.target.closest('#gearing-controls')) { updateGearingParams(); /* Gearing updates live, no full reset */ }
+                else if (e.target.closest('#integral-controls')) { updateIntegralParams(); createIntegralVisualization(); }
+                else if (e.target.closest('#network-controls')) {
+                    updateNetworkUIParams();
+                    if(document.getElementById('network-model').value !== 'grid-2d') {
+                        networkUIParams.nodes = parseInt(document.getElementById('network-nodes').value);
+                    } else {
+                        networkUIParams.nodes = parseInt(document.getElementById('network-grid-w').value) * parseInt(document.getElementById('network-grid-h').value);
+                    }
+                    const requiresReset = ['network-model', 'network-nodes', 'network-prob', 'network-ba-m', 'network-ba-m0', 'network-ws-k', 'network-ws-p', 'network-grid-w', 'network-grid-h', 'network-ring-k'].includes(targetId);
+                    const requiresVisualsUpdate = ['network-color', 'network-size', 'network-saturation', 'network-min-size', 'network-max-size', 'network-edge-opacity'].includes(targetId);
+                    if (requiresReset) resetSimulation(); 
+                    else if (requiresVisualsUpdate && networkSimulator) networkSimulator.updateVisuals();
+                }
+                 else if (e.target.closest('#complex-controls')) { updateComplexParams(); resetSimulation(); }
+            }
+
+            function onWindowResize(){ camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+            function renderStaticEquation(elementId, latex) { 
+                const el = document.getElementById(elementId);
+                if(window.katex && el) { 
+                    try {
+                        el.classList.remove('hidden'); 
+                        katex.render(latex, el, { throwOnError: false, displayMode: true }); 
+                    } catch (e) {
+                        console.error("Katex rendering error:", e);
+                        el.textContent = "Error rendering equation.";
+                    }
+                } 
+            }
+            
+            function resetSimulation() {
+                if(networkSimulator) { networkSimulator.destroy(); networkSimulator = null; }
+                if(waveState.nodes) { waveState.nodes.forEach(n => scene.remove(n)); }
+                waveState = {};
+                gearingState = {};
+
+                // Clear scene robustly
+                for (let i = scene.children.length - 1; i >= 0; i--) {
+                    const obj = scene.children[i];
+                     if (obj.isMesh || obj.isLine || obj.isPoints || obj.isGroup || obj.isArrowHelper || obj.isLineSegments) {
+                        scene.remove(obj);
+                        if (obj.geometry) obj.geometry.dispose();
+                        if (obj.material) {
+                            if (Array.isArray(obj.material)) {
+                                obj.material.forEach(m => m.dispose());
+                            } else {
+                                obj.material.dispose();
+                            }
+                        }
+                        if (obj.isGroup) {
+                            obj.traverse(child => {
+                                if (child.geometry) child.geometry.dispose();
+                                if (child.material) child.material.dispose();
+                            });
+                        }
+                    }
+                }
+                activeObject = null; 
+                integralArea = null;
+
+                scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                dirLight.position.set(5, 10, 7.5);
+                scene.add(dirLight);
+                
+                if (simMode !== 'wave' && simMode !== 'complex' && simMode !== 'network' && simMode !== 'gearing') {
+                    const axes = new THREE.AxesHelper(10);
+                    axes.name = "axes";
+                    scene.add(axes);
+                }
+                
+                if (simMode === 'oscillator') resetOscillator();
+                else if (simMode === 'chaotic') createChaoticAttractor();
+                else if (simMode === 'quantum') createQuantumPlot();
+                else if (simMode === 'heat3d') resetHeat3D();
+                else if (simMode === 'gas') createGasSim();
+                else if (simMode === 'wave') createWaveSim();
+                else if (simMode === 'laplace') createLaplaceSurface();
+                else if (simMode === 'signal') createSignalPlot();
+                else if (simMode === 'stress') createStressTensorVis();
+                else if (simMode === 'tribology') createTribologySim();
+                else if (simMode === 'gearing') createGearingVis();
+                else if (simMode === 'integral') createIntegralVisualization();
+                else if (simMode === 'network') {
+                    networkSimulator = new NetworkSimulator(scene, controls);
+                    networkSimulator.init(networkUIParams);
+                } else if (simMode === 'complex') createComplexPlane();
+            }
+
+            let lastFrameTime = 0;
+            function animate() {
+                requestAnimationFrame(animate);
+                controls.update();
+
+                const elapsedTime = (performance.now() / 1000);
+                const deltaTime = elapsedTime - lastFrameTime;
+                lastFrameTime = elapsedTime;
+
+                if (simMode === 'oscillator' && activeObject) updateOscillatorAnimation();
+                if (simMode === 'chaotic' && activeObject) updateChaoticAnimation();
+                if (simMode === 'heat3d' && activeObject) updateHeat3DAnimation();
+                if (simMode === 'gas' && activeObject) updateGasAnimation();
+                if (simMode === 'wave' && waveState.waterMesh) updateWaveAnimation(elapsedTime, deltaTime);
+                if (simMode === 'tribology' && activeObject) updateTribologyAnimation();
+                if (simMode === 'gearing' && gearingState.gears) updateGearingAnimation(elapsedTime, deltaTime);
+                if (simMode === 'network' && networkSimulator) networkSimulator.update();
+                updateUIPanels();
+                renderer.render(scene, camera);
+            }
+
+            function updateUIPanels() { 
+                const elements = camera.matrixWorld.elements; 
+                let matrixString = ''; 
+                for (let i = 0; i < 4; i++) {
+                    matrixString += `${elements[i*4].toFixed(2).padStart(6,' ')} ${elements[i*4+1].toFixed(2).padStart(6,' ')} ${elements[i*4+2].toFixed(2).padStart(6,' ')} ${elements[i*4+3].toFixed(2).padStart(6,' ')}\n`; 
+                }
+                document.getElementById('matrix-content').textContent = matrixString; 
+            }
+            
+            function onMouseDown(event) {
+                if (simMode === 'network' && networkSimulator) networkSimulator.handleMouseDown(event);
+            }
+            function onMouseMove(event) { if (simMode === 'network' && networkSimulator) networkSimulator.handleMouseMove(event); }
+            function onMouseUp() { if (simMode === 'network' && networkSimulator) networkSimulator.handleMouseUp(); }
+
+            // --- OSCILLATOR ---
+            function updateOscillatorParams() { 
+                Object.assign(oscParams, { 
+                    a: parseFloat(document.getElementById('coeff-a').value), 
+                    b: parseFloat(document.getElementById('coeff-b').value), 
+                    c: parseFloat(document.getElementById('coeff-c').value), 
+                    forceType: document.querySelector('#oscillator-controls input[name="force-type"]:checked').value, 
+                    inverse: document.getElementById('inverse-force').checked, 
+                    forceAmp: parseFloat(document.getElementById('force-amp').value), 
+                    forceFreq: parseFloat(document.getElementById('force-freq').value),
+                    dt: parseFloat(document.getElementById('osc-dt').value),
+                    trailLength: parseInt(document.getElementById('osc-trail').value),
+                    seriesTerms: parseInt(document.getElementById('osc-series-terms').value)
+                }); 
+                document.getElementById('osc-a-val').textContent = oscParams.a.toFixed(1); 
+                document.getElementById('osc-b-val').textContent = oscParams.b.toFixed(2); 
+                document.getElementById('osc-c-val').textContent = oscParams.c.toFixed(1); 
+                document.getElementById('force-amp-val').textContent = oscParams.forceAmp.toFixed(1); 
+                document.getElementById('force-freq-val').textContent = oscParams.forceFreq.toFixed(1);
+                document.getElementById('osc-dt-val').textContent = oscParams.dt.toFixed(3);
+                document.getElementById('osc-trail-val').textContent = oscParams.trailLength;
+                document.getElementById('osc-series-terms-val').textContent = oscParams.seriesTerms;
+
+                const showAmpFreq = ['sin','cos','square'].includes(oscParams.forceType); 
+                const showSeriesQuality = ['dirichlet', 'zeta'].includes(oscParams.forceType);
+                document.getElementById('force-amp-group').classList.toggle('hidden', !showAmpFreq); 
+                document.getElementById('force-freq-group').classList.toggle('hidden', !showAmpFreq); 
+                document.getElementById('series-quality-group').classList.toggle('hidden', !showSeriesQuality);
+
+                let f_t_str="0"; 
+                switch(oscParams.forceType){ 
+                    case 'sin': f_t_str=`${oscParams.forceAmp.toFixed(1)}\\sin(${oscParams.forceFreq.toFixed(1)}t)`; break; 
+                    case 'cos': f_t_str=`${oscParams.forceAmp.toFixed(1)}\\cos(${oscParams.forceFreq.toFixed(1)}t)`; break; 
+                    case 'square': f_t_str=`${oscParams.forceAmp.toFixed(1)}\\cdot\\text{sgn}(\\sin(${oscParams.forceFreq.toFixed(1)}t))`; break; 
+                    case 'dirichlet': f_t_str=`\\eta(1/2+it)`; break; 
+                    case 'zeta': f_t_str=`\\zeta(1/2+it)`; break; 
+                } 
+                let eq_rhs = oscParams.inverse && oscParams.forceType !== 'none' ? `\\frac{1}{${f_t_str}}` : f_t_str; 
+                renderStaticEquation('equation-display', `${oscParams.a.toFixed(1)}\\ddot{x} + ${oscParams.b.toFixed(2)}\\dot{x} + ${oscParams.c.toFixed(1)}x = ${eq_rhs}`); 
+            }
+            function calculateDirichletEta(t) {
+                const s = new Complex(0.5, t);
+                let sum = new Complex(0, 0);
+                for (let n = 1; n < oscParams.seriesTerms; n++) {
+                    const n_s = Complex.pow(new Complex(n, 0), s);
+                    const term = new Complex(1, 0).div(n_s);
+                    if ((n - 1) % 2 === 0) { sum = sum.add(term); }
+                    else { sum = sum.sub(term); }
+                }
+                return sum.re; 
+            }
+            function calculateRiemannZeta(t) {
+                const s = new Complex(0.5, t);
+                const result = fullZeta(s);
+                if (!isFinite(result.re)) return 0; // Prevent non-finite forces
+                // Clamp the force to prevent the oscillator from becoming unstable
+                return Math.max(-10, Math.min(10, result.re)); 
+            }
+            function solveOscillatorPoint() { 
+                const { a, b, c, forceType, inverse, forceAmp, forceFreq, t, x, y, dt } = oscParams; 
+                let force = 0; 
+                switch(forceType) { 
+                    case 'sin': force = forceAmp * Math.sin(forceFreq * t); break; 
+                    case 'cos': force = forceAmp * Math.cos(forceFreq * t); break; 
+                    case 'square': force = forceAmp * Math.sign(Math.sin(forceFreq * t)); break; 
+                    case 'dirichlet': force = 0.5 * calculateDirichletEta(t); break;
+                    case 'zeta': force = 0.5 * calculateRiemannZeta(t); break;
+                } 
+                if(inverse && Math.abs(force) > 1e-4) force = 1 / force; 
+                else if(inverse) force = 1e4; 
+                const dy = (force - b * y - c * x) / a * dt; 
+                const dx = y * dt; 
+                oscParams.x += dx; 
+                oscParams.y += dy; 
+                oscParams.t += dt; 
+                oscParams.points.push(new THREE.Vector3(oscParams.x, oscParams.y, Math.log(oscParams.t))); 
+                const kinetic = 0.5 * a*y*y, potential = 0.5*c*x*x, total=kinetic+potential; 
+                const hue=0.7-((total-oscParams.minE)/(oscParams.maxE-oscParams.minE))*0.7; 
+                const color = new THREE.Color().setHSL(Math.max(0,Math.min(0.7,hue)),0.9,0.6); 
+                oscParams.colors.push(color.r,color.g,color.b); 
+            }
+            function resetOscillator() { 
+                camera.position.set(4, 4, 6); 
+                controls.target.set(0,0,0); 
+                updateOscillatorParams(); 
+                Object.assign(oscParams, {x: 1.0, y: 0.0, t: 0.01, points: [], colors: [], minE: Infinity, maxE: -Infinity}); 
+                let tempEnergies = []; 
+                for (let i = 0; i < oscParams.trailLength; i++) { 
+                    const kinetic = 0.5 * oscParams.a * oscParams.y**2, potential = 0.5 * oscParams.c * oscParams.x**2; 
+                    tempEnergies.push(kinetic + potential); 
+                    solveOscillatorPoint(); 
+                } 
+                tempEnergies.sort((a,b) => a-b); 
+                oscParams.minE = tempEnergies[Math.floor(oscParams.trailLength*0.05)]; 
+                oscParams.maxE = tempEnergies[Math.floor(oscParams.trailLength*0.95)]; 
+                if (!isFinite(oscParams.minE) || oscParams.maxE - oscParams.minE < 1e-3) { oscParams.minE = 0; oscParams.maxE = 1; } 
+                Object.assign(oscParams, {x: 1.0, y: 0.0, t: 0.01, points:[], colors:[]}); 
+                for (let i=0; i < oscParams.trailLength; i++) solveOscillatorPoint(); 
+                const geometry = new THREE.BufferGeometry().setFromPoints(oscParams.points); 
+                geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(oscParams.colors), 3)); 
+                const material = new THREE.LineBasicMaterial({ vertexColors: true }); 
+                activeObject = new THREE.Line(geometry, material); 
+                scene.add(activeObject); 
+            }
+            function updateOscillatorAnimation() { 
+                if(oscParams.points.length === 0) return; 
+                oscParams.points.shift(); 
+                oscParams.colors.splice(0, 3); 
+                solveOscillatorPoint(); 
+                activeObject.geometry.setFromPoints(oscParams.points); 
+                activeObject.geometry.attributes.color.set(oscParams.colors); 
+                activeObject.geometry.attributes.color.needsUpdate = true; 
+            }
+
+            // --- CHAOTIC SYSTEMS ---
+            function updateChaoticParams() {
+                 Object.assign(chaoticParams, { 
+                    type: document.getElementById('chaotic-type').value,
+                    sigma: parseFloat(document.getElementById('chaos-sigma').value), 
+                    rho: parseFloat(document.getElementById('chaos-rho').value), 
+                    beta: parseFloat(document.getElementById('chaos-beta').value), 
+                    a: parseFloat(document.getElementById('chaos-a').value), 
+                    b: parseFloat(document.getElementById('chaos-b').value), 
+                    c: parseFloat(document.getElementById('chaos-c').value), 
+                    d: parseFloat(document.getElementById('chaos-d').value), 
+                    e: parseFloat(document.getElementById('chaos-e').value), 
+                    f: parseFloat(document.getElementById('chaos-f').value),
+                    alpha: parseFloat(document.getElementById('chaos-alpha').value),
+                    gamma: parseFloat(document.getElementById('chaos-gamma').value),
+                    delta: parseFloat(document.getElementById('chaos-delta').value),
+                    omega: parseFloat(document.getElementById('chaos-omega').value),
+                    dt: parseFloat(document.getElementById('chaos-dt').value),
+                    trailLength: parseInt(document.getElementById('chaos-trail').value),
+                 });
+                 
+                 document.getElementById('lorentz-params').classList.toggle('hidden', chaoticParams.type !== 'lorentz');
+                 document.getElementById('aizawa-params').classList.toggle('hidden', chaoticParams.type !== 'aizawa');
+                 document.getElementById('duffing-params').classList.toggle('hidden', chaoticParams.type !== 'duffing');
+
+                 document.getElementById('chaos-sigma-val').textContent = chaoticParams.sigma.toFixed(1);
+                 document.getElementById('chaos-rho-val').textContent = chaoticParams.rho.toFixed(1);
+                 document.getElementById('chaos-beta-val').textContent = chaoticParams.beta.toFixed(2);
+                 document.getElementById('chaos-a-val').textContent = chaoticParams.a.toFixed(2);
+                 document.getElementById('chaos-b-val').textContent = chaoticParams.b.toFixed(2);
+                 document.getElementById('chaos-c-val').textContent = chaoticParams.c.toFixed(2);
+                 document.getElementById('chaos-d-val').textContent = chaoticParams.d.toFixed(2);
+                 document.getElementById('chaos-e-val').textContent = chaoticParams.e.toFixed(2);
+                 document.getElementById('chaos-f-val').textContent = chaoticParams.f.toFixed(2);
+                 document.getElementById('chaos-alpha-val').textContent = chaoticParams.alpha.toFixed(2);
+                 document.getElementById('chaos-beta-duff-val').textContent = chaoticParams.beta.toFixed(2);
+                 document.getElementById('chaos-gamma-val').textContent = chaoticParams.gamma.toFixed(2);
+                 document.getElementById('chaos-delta-val').textContent = chaoticParams.delta.toFixed(2);
+                 document.getElementById('chaos-omega-val').textContent = chaoticParams.omega.toFixed(2);
+
+                 document.getElementById('chaos-dt-val').textContent = chaoticParams.dt.toFixed(3);
+                 document.getElementById('chaos-trail-val').textContent = chaoticParams.trailLength;
+            }
+            function createChaoticAttractor() {
+                updateChaoticParams();
+                const { trailLength } = chaoticParams;
+                Object.assign(chaoticParams, { x: 0.1, y: 0, z: 0, points: []});
+                camera.position.set(0, 0, 50);
+                controls.target.set(0, 0, 0);
+
+                for(let i=0; i < trailLength; i++) {
+                    solveChaoticPoint();
+                }
+                const geometry = new THREE.BufferGeometry().setFromPoints(chaoticParams.points);
+                const material = new THREE.LineBasicMaterial({ color: 0x66ccff, transparent: true, opacity: 0.8 });
+                activeObject = new THREE.Line(geometry, material);
+                scene.add(activeObject);
+            }
+            function solveChaoticPoint() {
+                const p = chaoticParams;
+                let dx=0, dy=0, dz=0;
+
+                switch(p.type) {
+                    case 'lorentz':
+                        dx = p.sigma * (p.y - p.x);
+                        dy = p.x * (p.rho - p.z) - p.y;
+                        dz = p.x * p.y - p.beta * p.z;
+                        break;
+                    case 'aizawa':
+                        dx = (p.z - p.b) * p.x - p.d * p.y;
+                        dy = p.d * p.x + (p.z - p.b) * p.y;
+                        dz = p.c + p.a * p.z - (p.z**3 / 3) - (p.x**2 + p.y**2) * (1 + p.e * p.z) + p.f * p.z * p.x**3;
+                        break;
+                    case 'duffing':
+                        dx = p.y;
+                        dy = -p.beta * p.x + p.alpha * p.x - p.delta * p.x**3 + p.gamma * Math.cos(p.omega * p.t);
+                        p.t = (p.t || 0) + p.dt;
+                        break;
+                }
+
+                p.x += dx * p.dt;
+                p.y += dy * p.dt;
+                p.z += dz * p.dt;
+                
+                if (p.type === 'duffing') {
+                    p.points.push(new THREE.Vector3(p.x, p.y, 0)); // 2D plot
+                } else {
+                     p.points.push(new THREE.Vector3(p.x, p.y, p.z));
+                }
+            }
+            function updateChaoticAnimation() {
+                if(chaoticParams.points.length === 0) return; 
+                chaoticParams.points.shift(); 
+                solveChaoticPoint(); 
+                activeObject.geometry.setFromPoints(chaoticParams.points);
+            }
+
+            // --- QUANTUM MECHANICS ---
+            function updateQuantumParams() {
+                 Object.assign(quantumParams, { 
+                    type: document.getElementById('quantum-type').value,
+                    L: parseFloat(document.getElementById('quantum-L').value),
+                    n: parseInt(document.getElementById('quantum-n-box').value),
+                    n_qho: parseInt(document.getElementById('quantum-n-qho').value),
+                    n_hyd: parseInt(document.getElementById('quantum-n-hyd').value),
+                    l_hyd: parseInt(document.getElementById('quantum-l-hyd').value),
+                    m_hyd: parseInt(document.getElementById('quantum-m-hyd').value),
+                    particleEnergy: parseFloat(document.getElementById('quantum-energy').value),
+                    barrierHeight: parseFloat(document.getElementById('quantum-barrier-h').value),
+                    barrierWidth: parseFloat(document.getElementById('quantum-barrier-w').value),
+                    nx: parseInt(document.getElementById('quantum-nx').value),
+                    ny: parseInt(document.getElementById('quantum-ny').value),
+                 });
+                 // Toggle visibility of control groups
+                 document.getElementById('q-1d-box-params').classList.toggle('hidden', quantumParams.type !== 'box');
+                 document.getElementById('q-qho-params').classList.toggle('hidden', quantumParams.type !== 'qho');
+                 document.getElementById('q-tunnel-params').classList.toggle('hidden', quantumParams.type !== 'tunneling');
+                 document.getElementById('q-2d-box-params').classList.toggle('hidden', quantumParams.type !== 'box2d');
+                 document.getElementById('q-hyd-params').classList.toggle('hidden', quantumParams.type !== 'hydrogen');
+                 
+                 // Update slider value displays
+                 document.getElementById('quantum-L-val').textContent = quantumParams.L.toFixed(1);
+                 document.getElementById('quantum-n-box-val').textContent = quantumParams.n;
+                 document.getElementById('quantum-n-qho-val').textContent = quantumParams.n_qho;
+                 document.getElementById('quantum-n-hyd-val').textContent = quantumParams.n_hyd;
+                 document.getElementById('quantum-l-hyd-val').textContent = quantumParams.l_hyd;
+                 document.getElementById('quantum-m-hyd-val').textContent = quantumParams.m_hyd;
+                 document.getElementById('quantum-energy-val').textContent = quantumParams.particleEnergy.toFixed(1);
+                 document.getElementById('quantum-barrier-h-val').textContent = quantumParams.barrierHeight.toFixed(1);
+                 document.getElementById('quantum-barrier-w-val').textContent = quantumParams.barrierWidth.toFixed(1);
+                 document.getElementById('quantum-nx-val').textContent = quantumParams.nx;
+                 document.getElementById('quantum-ny-val').textContent = quantumParams.ny;
+
+                 // Update equation display
+                 let eqStr = '';
+                 switch(quantumParams.type) {
+                    case 'box': eqStr = `\\Psi_n(x) = \\sqrt{\\frac{2}{L}} \\sin\\left(\\frac{n\\pi x}{L}\\right)`; break;
+                    case 'qho': eqStr = `\\Psi_n(x) = N_n H_n(\\alpha x) e^{-\\alpha^2 x^2/2}`; break;
+                    case 'tunneling': eqStr = `E = ${quantumParams.particleEnergy.toFixed(1)}, V_0 = ${quantumParams.barrierHeight.toFixed(1)}`; break;
+                    case 'box2d': eqStr = `\\Psi_{n_x,n_y}(x,y) = \\frac{2}{L} \\sin(\\frac{n_x\\pi x}{L}) \\sin(\\frac{n_y\\pi y}{L})`; break;
+                    case 'hydrogen': eqStr = `\\Psi_{n,l,m}(r,\\theta,\\phi) = R_{n,l}(r)Y_l^m(\\theta,\\phi)`; break;
+                 }
+                 renderStaticEquation('equation-display', eqStr);
+            }
+            function factorial(num) { 
+                if (num < 0) return Infinity;
+                let val = 1;
+                for (let i = 2; i <= num; i++) val *= i;
+                return val;
+            }
+            function hermite(n, x) {
+                if (n === 0) return 1;
+                if (n === 1) return 2 * x;
+                return 2 * x * hermite(n - 1, x) - 2 * (n - 1) * hermite(n - 2, x);
+            }
+            // Associated Laguerre polynomial L_n^k(x)
+            function laguerre(n, k, x) {
+                 if (n === 0) return 1;
+                 if (n === 1) return 1 + k - x;
+                 return ((2 * n + k - 1 - x) * laguerre(n - 1, k, x) - (n + k - 1) * laguerre(n - 2, k, x)) / n;
+            }
+            // Spherical Harmoic Y_lm(theta, phi) - magnitude squared part
+            function sphericalY(l, m, theta) {
+                m = Math.abs(m);
+                let pmm = 1.0;
+                if (m > 0) {
+                    let somx2 = Math.sqrt((1.0 - Math.cos(theta)) * (1.0 + Math.cos(theta)));
+                    let fact = 1.0;
+                    for (let i = 1; i <= m; i++) {
+                        pmm *= -fact * somx2;
+                        fact += 2.0;
+                    }
+                }
+                if (l === m) return pmm;
+                let pmmp1 = Math.cos(theta) * (2.0 * m + 1.0) * pmm;
+                if (l === m + 1) return pmmp1;
+                let pll = 0.0;
+                for (let ll = m + 2; ll <= l; ll++) {
+                    pll = ((2.0 * ll - 1.0) * Math.cos(theta) * pmmp1 - (ll + m - 1.0) * pmm) / (ll - m);
+                    pmm = pmmp1;
+                    pmmp1 = pll;
+                }
+                return pll;
+            }
+
+            function createQuantumPlot() {
+                updateQuantumParams();
+                scene.remove(scene.getObjectByName("axes"));
+                switch(quantumParams.type) {
+                    case 'box':
+                    case 'qho':
+                    case 'tunneling':
+                        createQuantumPlot1D();
+                        break;
+                    case 'box2d':
+                    case 'hydrogen':
+                        createQuantumPlot2D();
+                        break;
+                }
+            }
+
+            function createQuantumPlot1D() {
+                const { type, L, n, res, mass, omega, n_qho, particleEnergy, barrierHeight, barrierWidth } = quantumParams;
+                const xMax = type === 'tunneling' ? L * 1.5 : L;
+                camera.position.set(xMax/2, 0, 10);
+                controls.target.set(xMax/2, 0, 0);
+
+                activeObject = new THREE.Group();
+                
+                // Plot potential
+                const potentialPoints = [];
+                const potentialMat = new THREE.LineBasicMaterial({ color: 0xcccccc, transparent: true, opacity: 0.5 });
+                if(type === 'tunneling') {
+                    const barrierStart = (L - barrierWidth) / 2;
+                    const barrierEnd = (L + barrierWidth) / 2;
+                    potentialPoints.push(new THREE.Vector3(0,0,0), new THREE.Vector3(barrierStart, 0, 0), new THREE.Vector3(barrierStart, barrierHeight, 0), new THREE.Vector3(barrierEnd, barrierHeight, 0), new THREE.Vector3(barrierEnd, 0, 0), new THREE.Vector3(xMax, 0, 0));
+                }
+                if(potentialPoints.length > 0) activeObject.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(potentialPoints), potentialMat));
+
+                // Plot Wavefunction
+                const psiPoints = [], probPoints = [];
+                for (let i = 0; i <= 500; i++) {
+                    const x = (i / 500) * xMax;
+                    let psi = 0, prob = 0;
+                    if(type === 'box') {
+                        psi = Math.sqrt(2 / L) * Math.sin(n * Math.PI * x / L) * (x > 0 && x < L ? 1 : 0);
+                        prob = psi**2;
+                    } else if (type === 'qho') {
+                        const alpha = Math.sqrt(mass * omega);
+                        const N = 1 / Math.sqrt(2**n_qho * factorial(n_qho)) * Math.pow(alpha / Math.PI, 0.25);
+                        psi = N * hermite(n_qho, Math.sqrt(alpha) * x) * Math.exp(-alpha * x**2 / 2);
+                        prob = psi**2;
+                    } else if (type === 'tunneling') {
+                        // Simplified tunneling visualization
+                        const k1 = Math.sqrt(2 * mass * particleEnergy);
+                        const k2 = Math.sqrt(2 * mass * Math.abs(particleEnergy - barrierHeight));
+                        const barrierStart = (L - barrierWidth) / 2;
+                        const barrierEnd = (L + barrierWidth) / 2;
+                        if (x < barrierStart) {
+                            psi = Math.cos(k1 * x); // Incident + reflected
+                        } else if (x >= barrierStart && x <= barrierEnd) {
+                            if (particleEnergy > barrierHeight) {
+                                psi = Math.cos(k2 * (x - barrierStart)); // Oscillating in barrier
+                            } else {
+                                psi = Math.exp(-k2 * (x - barrierStart)); // Decaying in barrier
+                            }
+                        } else {
+                             if (particleEnergy > barrierHeight) {
+                                psi = Math.cos(k1 * (x - barrierEnd)); // Transmitted
+                            } else {
+                                psi = Math.exp(-k2 * barrierWidth) * Math.cos(k1 * (x-barrierEnd)); // Tunnelled
+                            }
+                        }
+                        prob = psi**2;
+                    }
+                    psiPoints.push(new THREE.Vector3(x, psi, 0));
+                    probPoints.push(new THREE.Vector3(x, prob, 0));
+                }
+                activeObject.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(psiPoints), new THREE.LineBasicMaterial({ color: 0x00aaff })));
+                activeObject.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(probPoints), new THREE.LineBasicMaterial({ color: 0xffaa00 })));
+                scene.add(activeObject);
+            }
+
+            function createQuantumPlot2D() {
+                 const { type, L, res, n_hyd, l_hyd, m_hyd, nx, ny } = quantumParams;
+                 const size = type === 'hydrogen' ? 40 * (n_hyd) : L;
+                 camera.position.set(0, 0, size * 1.2);
+                 controls.target.set(0,0,0);
+                 
+                 const geometry = new THREE.PlaneGeometry(size, size, res, res);
+                 const colors = new Float32Array((res+1) * (res+1) * 3);
+                 let maxProb = 0;
+                 const probabilities = [];
+
+                 for(let j=0; j<=res; j++) {
+                    for(let i=0; i<=res; i++) {
+                        const Px = -size/2 + (i/res) * size;
+                        const Py = -size/2 + (j/res) * size;
+                        let prob = 0;
+                        if(type === 'box2d') {
+                             const psi = Math.sin(nx * Math.PI * (Px + L/2)/L) * Math.sin(ny * Math.PI * (Py+L/2)/L);
+                             prob = psi**2;
+                        } else if(type === 'hydrogen') {
+                             const r = Math.sqrt(Px**2 + Py**2);
+                             const theta = Math.acos(0); // z=0 plane for slice
+                             const phi = Math.atan2(Py, Px);
+                             const rho = 2 * r / n_hyd;
+                             const R_nl = Math.sqrt(Math.pow(2/n_hyd,3) * factorial(n_hyd - l_hyd - 1) / (2*n_hyd*factorial(n_hyd+l_hyd))) * Math.exp(-rho/2) * Math.pow(rho,l_hyd) * laguerre(n_hyd-l_hyd-1, 2*l_hyd+1, rho);
+                             const Y_lm = sphericalY(l_hyd, m_hyd, theta);
+                             prob = R_nl**2 * Y_lm**2;
+                        }
+                        probabilities.push(prob);
+                        if(prob > maxProb) maxProb = prob;
+                    }
+                 }
+
+                 let c_idx = 0;
+                 for(let prob of probabilities) {
+                    const normProb = maxProb > 0 ? prob / maxProb : 0;
+                    const color = new THREE.Color().setHSL(0.6, 1.0, normProb * 0.8);
+                    colors[c_idx*3] = color.r; colors[c_idx*3+1] = color.g; colors[c_idx*3+2] = color.b;
+                    c_idx++;
+                 }
+
+                geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                const material = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
+                activeObject = new THREE.Mesh(geometry, material);
+                scene.add(activeObject);
+            }
+
+            // --- HEAT FIELD ---
+            function updateHeat3DParams() { 
+                Object.assign(heat3DParams, { 
+                    alpha: parseFloat(document.getElementById('coeff-alpha').value), 
+                    gridSize: parseInt(document.getElementById('heat-grid-size').value),
+                    srcX: parseInt(document.getElementById('heat-x').value), 
+                    srcY: parseInt(document.getElementById('heat-y').value), 
+                    srcZ: parseInt(document.getElementById('heat-z').value),
+                    initialTemp: parseFloat(document.getElementById('heat-temp').value),
+                    sourceSharpness: parseFloat(document.getElementById('heat-sharp').value),
+                    particleSize: parseFloat(document.getElementById('heat-particle').value)
+                }); 
+                document.getElementById('heat-x').max = heat3DParams.gridSize - 2;
+                document.getElementById('heat-y').max = heat3DParams.gridSize - 2;
+                document.getElementById('heat-z').max = heat3DParams.gridSize - 2;
+
+                document.getElementById('heat-alpha-val').textContent = heat3DParams.alpha.toFixed(2); 
+                document.getElementById('heat-grid-size-val').textContent = heat3DParams.gridSize;
+                document.getElementById('heat-x-val').textContent = heat3DParams.srcX; 
+                document.getElementById('heat-y-val').textContent = heat3DParams.srcY; 
+                document.getElementById('heat-z-val').textContent = heat3DParams.srcZ;
+                document.getElementById('heat-temp-val').textContent = heat3DParams.initialTemp;
+                document.getElementById('heat-sharp-val').textContent = heat3DParams.sourceSharpness;
+                document.getElementById('heat-particle-val').textContent = heat3DParams.particleSize.toFixed(1);
+                
+                renderStaticEquation('equation-display', `\\frac{\\partial u}{\\partial t} = ${heat3DParams.alpha.toFixed(2)} \\nabla^2 u`); 
+            }
+            function resetHeat3D() { 
+                updateHeat3DParams(); 
+                const { gridSize, srcX, srcY, srcZ, initialTemp, sourceSharpness, particleSize } = heat3DParams; 
+                camera.position.set(gridSize, gridSize, gridSize*1.5); 
+                controls.target.set(gridSize/2, gridSize/2, gridSize/2); 
+                heat3DParams.u = new Array(gridSize).fill(0).map(()=>new Array(gridSize).fill(0).map(()=>new Array(gridSize).fill(0))); 
+                heat3DParams.u_next = new Array(gridSize).fill(0).map(()=>new Array(gridSize).fill(0).map(()=>new Array(gridSize).fill(0))); 
+                for(let i=0;i<gridSize;i++)for(let j=0;j<gridSize;j++)for(let k=0;k<gridSize;k++){
+                    const distSq=(i-srcX)**2+(j-srcY)**2+(k-srcZ)**2;
+                    heat3DParams.u[i][j][k]= initialTemp * Math.exp(-distSq/sourceSharpness);
+                } 
+                const geometry=new THREE.BufferGeometry(); 
+                const positions=new Float32Array(gridSize*gridSize*gridSize*3); 
+                let vIdx=0; 
+                for(let i=0;i<gridSize;i++)for(let j=0;j<gridSize;j++)for(let k=0;k<gridSize;k++){positions.set([i,j,k],vIdx*3);vIdx++;} 
+                geometry.setAttribute('position',new THREE.BufferAttribute(positions,3)); 
+                const material=new THREE.PointsMaterial({size: particleSize, vertexColors:true,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}); 
+                activeObject=new THREE.Points(geometry,material); 
+                activeObject.geometry.setAttribute('color',new THREE.BufferAttribute(new Float32Array(gridSize*gridSize*gridSize*3),3)); 
+                scene.add(activeObject); 
+                const boxGeom=new THREE.BoxGeometry(gridSize,gridSize,gridSize); 
+                const boxEdges=new THREE.EdgesGeometry(boxGeom); 
+                const boundaryBox=new THREE.LineSegments(boxEdges,new THREE.LineBasicMaterial({color:0x444444})); 
+                boundaryBox.position.set((gridSize-1)/2,(gridSize-1)/2,(gridSize-1)/2); 
+                scene.add(boundaryBox); 
+            }
+            function updateHeat3DAnimation() { 
+                const { u, u_next, gridSize, alpha } = heat3DParams; 
+                const dt=0.1, dx=1, C=alpha*dt/(dx*dx); 
+                if(C > 0.16) return;
+                for(let i=1;i<gridSize-1;i++)for(let j=1;j<gridSize-1;j++)for(let k=1;k<gridSize-1;k++){
+                    const laplacian=(u[i+1][j][k]+u[i-1][j][k]+u[i][j+1][k]+u[i][j-1][k]+u[i][j][k+1]+u[i][j][k-1]-6*u[i][j][k]); 
+                    u_next[i][j][k]=u[i][j][k]+C*laplacian;
+                } 
+                heat3DParams.u=u_next.map(arr_2d=>arr_2d.map(arr_1d=>[...arr_1d])); 
+                const colors=activeObject.geometry.attributes.color.array;
+                let maxTemp=0.001; 
+                for(let i=0;i<gridSize;i++)for(let j=0;j<gridSize;j++)for(let k=0;k<gridSize;k++)if(u[i][j][k]>maxTemp)maxTemp=u[i][j][k]; 
+                let cIdx=0; 
+                for(let i=0;i<gridSize;i++)for(let j=0;j<gridSize;j++)for(let k=0;k<gridSize;k++){
+                    const temp=u[i][j][k]||0; 
+                    const normTemp=Math.min(1, temp/maxTemp); 
+                    const hue=0.7-normTemp*0.7;
+                    const color=new THREE.Color().setHSL(hue,1.0,0.5);
+                    colors[cIdx*3]=color.r;
+                    colors[cIdx*3+1]=color.g;
+                    colors[cIdx*3+2]=color.b;
+                    cIdx++;
+                } 
+                activeObject.geometry.attributes.color.needsUpdate=true; 
+            }
+
+            // --- GAS DISPERSION ---
+            function updateGasParams() {
+                 Object.assign(gasParams, { 
+                    diffusion: parseFloat(document.getElementById('gas-diffusion').value),
+                    pumpRate: parseFloat(document.getElementById('gas-pump-rate').value),
+                    pumpX: parseInt(document.getElementById('gas-x').value),
+                    pumpY: parseInt(document.getElementById('gas-y').value),
+                    pumpZ: parseInt(document.getElementById('gas-z').value),
+                    gridSize: parseInt(document.getElementById('gas-grid-size').value)
+                 });
+                 document.getElementById('gas-x').max = gasParams.gridSize - 2;
+                 document.getElementById('gas-y').max = gasParams.gridSize - 2;
+                 document.getElementById('gas-z').max = gasParams.gridSize - 2;
+                 document.getElementById('gas-diffusion-val').textContent = gasParams.diffusion.toFixed(2);
+                 document.getElementById('gas-pump-rate-val').textContent = gasParams.pumpRate.toFixed(1);
+                 document.getElementById('gas-grid-size-val').textContent = gasParams.gridSize;
+                 document.getElementById('gas-x-val').textContent = gasParams.pumpX;
+                 document.getElementById('gas-y-val').textContent = gasParams.pumpY;
+                 document.getElementById('gas-z-val').textContent = gasParams.pumpZ;
+                  renderStaticEquation('equation-display', `\\frac{\\partial C}{\\partial t} = D \\nabla^2 C + S(x,y,z)`);
+            }
+            function createGasSim() {
+                updateGasParams();
+                const { gridSize, particleSize } = gasParams;
+                camera.position.set(gridSize, gridSize, gridSize * 1.5);
+                controls.target.set(gridSize / 2, gridSize / 2, gridSize / 2);
+
+                gasState.c = new Array(gridSize).fill(0).map(() => new Array(gridSize).fill(0).map(() => new Array(gridSize).fill(0)));
+                gasState.c_next = new Array(gridSize).fill(0).map(() => new Array(gridSize).fill(0).map(() => new Array(gridSize).fill(0)));
+                
+                const geometry = new THREE.BufferGeometry();
+                const positions = new Float32Array(gridSize * gridSize * gridSize * 3);
+                const colors = new Float32Array(gridSize * gridSize * gridSize * 3);
+                let vIdx = 0;
+                for (let i = 0; i < gridSize; i++) for (let j = 0; j < gridSize; j++) for (let k = 0; k < gridSize; k++) {
+                    positions.set([i, j, k], vIdx * 3);
+                    vIdx++;
+                }
+                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+                const material = new THREE.PointsMaterial({ size: 0.8, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+                activeObject = new THREE.Points(geometry, material);
+                scene.add(activeObject);
+                 const boxGeom=new THREE.BoxGeometry(gridSize,gridSize,gridSize); 
+                const boxEdges=new THREE.EdgesGeometry(boxGeom); 
+                const boundaryBox=new THREE.LineSegments(boxEdges,new THREE.LineBasicMaterial({color:0x444444})); 
+                boundaryBox.position.set((gridSize-1)/2,(gridSize-1)/2,(gridSize-1)/2); 
+                scene.add(boundaryBox); 
+            }
+            function updateGasAnimation() {
+                const { c, c_next } = gasState;
+                const { gridSize, diffusion, pumpRate, pumpX, pumpY, pumpZ } = gasParams;
+                const dt = 0.1, dx = 1, decay = 0.995;
+
+                for (let i = 1; i < gridSize - 1; i++) for (let j = 1; j < gridSize - 1; j++) for (let k = 1; k < gridSize - 1; k++) {
+                    const laplacian = (c[i+1][j][k] + c[i-1][j][k] + c[i][j+1][k] + c[i][j-1][k] + c[i][j][k+1] + c[i][j][k-1] - 6 * c[i][j][k]);
+                    c_next[i][j][k] = (c[i][j][k] + diffusion * laplacian * dt / (dx * dx)) * decay;
+                }
+                c_next[pumpX][pumpY][pumpZ] += pumpRate * dt;
+
+                gasState.c = c_next.map(arr_2d => arr_2d.map(arr_1d => [...arr_1d]));
+                
+                const colors = activeObject.geometry.attributes.color.array;
+                const sizes = new Float32Array(gridSize * gridSize * gridSize);
+                let maxConc = 0.1;
+                for (let i = 0; i < gridSize; i++) for (let j = 0; j < gridSize; j++) for (let k = 0; k < gridSize; k++) if (c[i][j][k] > maxConc) maxConc = c[i][j][k];
+
+                let cIdx = 0;
+                for (let i = 0; i < gridSize; i++) for (let j = 0; j < gridSize; j++) for (let k = 0; k < gridSize; k++) {
+                    const conc = c[i][j][k] || 0;
+                    const normConc = Math.min(1, conc / maxConc);
+                    
+                    const color = new THREE.Color();
+                    color.setHSL(0.7 - normConc * 0.7, 1.0, normConc * 0.6 + 0.1);
+                    
+                    colors[cIdx * 3] = color.r; 
+                    colors[cIdx * 3 + 1] = color.g; 
+                    colors[cIdx * 3 + 2] = color.b;
+
+                    cIdx++;
+                }
+                activeObject.geometry.attributes.color.needsUpdate = true;
+            }
+
+            // --- WAVE & BEACH SIMULATION ---
+            function updateWaveParams() {
+                 Object.assign(waveParams, { 
+                    amplitude: parseFloat(document.getElementById('wave-amplitude').value),
+                    frequency: parseFloat(document.getElementById('wave-frequency').value),
+                    speed: parseFloat(document.getElementById('wave-speed').value),
+                    leftPushPower: parseFloat(document.getElementById('wave-push-power').value)
+                 });
+                 document.getElementById('wave-amplitude-val').textContent = waveParams.amplitude.toFixed(2);
+                 document.getElementById('wave-frequency-val').textContent = waveParams.frequency.toFixed(1);
+                 document.getElementById('wave-speed-val').textContent = waveParams.speed.toFixed(1);
+                 document.getElementById('wave-push-power-val').textContent = waveParams.leftPushPower.toFixed(2);
+                 
+                 // Update shader uniforms directly without reset
+                 if(waveState.waterMesh) {
+                    waveState.waterMesh.material.uniforms.amplitude.value = waveParams.amplitude;
+                    waveState.waterMesh.material.uniforms.frequency.value = waveParams.frequency;
+                    waveState.waterMesh.material.uniforms.speed.value = waveParams.speed;
+                    waveState.waterMesh.material.uniforms.uLeftPushPower.value = waveParams.leftPushPower;
+                 }
+            }
+
+            function createWaveSim() {
+                const tankWidth = 25, tankDepth = 15, tankHeight = 5;
+                const initialWaterLevel = -tankHeight / 2 + 1.5;
+                const seabedMinY = -tankHeight / 2 - 1.0;
+                const beachTopY = initialWaterLevel + 0.5;
+                const beachStartX = -tankWidth / 4;
+                const beachEndX = tankWidth / 2;
+
+                waveState = {
+                    nodes: [],
+                    tankWidth, tankDepth, tankHeight,
+                    initialWaterLevel, seabedMinY, beachTopY, beachStartX, beachEndX,
+                    nodeRadius: 0.2, nodeDensity: 0.3, gravity: 9.81, waterDensity: 1000, dragCoefficient: 8.0
+                };
+                
+                camera.position.set(0, 8, 25);
+                controls.target.set(tankWidth * 0.1, 0, 0);
+
+                // --- SHADER DEFINITIONS ---
+                const waterVertexShader = `
+                    uniform float time; uniform float amplitude; uniform float frequency; uniform float speed;
+                    uniform float uInitialWaterLevel; uniform float uTankWidth; uniform float uSeabedMinY;
+                    uniform float uBeachTopY; uniform float uBeachStartX; uniform float uBeachEndX; uniform float uLeftPushPower;
+                    varying vec3 vNormal; varying vec3 vPosition; varying float vWaterDepth;
+
+                    float getSeabedHeight(float x) {
+                        if (x > uBeachStartX) {
+                            float progress = (x - uBeachStartX) / (uBeachEndX - uBeachStartX);
+                            return uSeabedMinY + (uBeachTopY - uSeabedMinY) * progress;
+                        }
+                        return uSeabedMinY;
+                    }
+
+                    void main() {
+                        vPosition = position;
+                        vec3 p = position;
+                        
+                        float pushEffect = 0.0;
+                        if (p.x < uBeachStartX) {
+                            float normalizedX = (p.x - (-uTankWidth / 2.0)) / (uBeachStartX - (-uTankWidth / 2.0));
+                            pushEffect = uLeftPushPower * (1.0 - normalizedX);
+                            pushEffect = max(0.0, pushEffect);
+                        }
+                        pushEffect *= (1.0 + sin(time * 0.5) * 0.5);
+
+                        float waveX = amplitude * sin(-p.x * frequency + time * speed);
+                        float waveY = amplitude * 0.5 * cos(p.y * frequency * 0.7 + time * speed * 1.2);
+                        
+                        p.z = uInitialWaterLevel + waveX + waveY + pushEffect;
+
+                        float seabedZ = getSeabedHeight(p.x);
+                        p.z = max(p.z, seabedZ + 0.05);
+                        vWaterDepth = p.z - seabedZ;
+
+                        vNormal = normal;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+                    }`;
+
+                const waterFragmentShader = `
+                    uniform float time; uniform vec3 uTopColor; uniform vec3 uBottomColor; uniform float uOpacity;
+                    uniform float uInitialWaterLevel; uniform float uSeabedMinY;
+                    varying vec3 vNormal; varying vec3 vPosition; varying float vWaterDepth;
+                    
+                    void main() {
+                        float maxPossibleDepth = uInitialWaterLevel - uSeabedMinY;
+                        float depthFactor = clamp(vWaterDepth / maxPossibleDepth, 0.0, 1.0);
+                        vec3 waterColor = mix(uTopColor, uBottomColor, depthFactor);
+
+                        float turbulenceStrength = 0.05 + 0.15 * max(0.0, (1.0 - vWaterDepth * 2.0));
+                        float ripple1 = sin(vPosition.x * 20.0 + time * 10.0) * cos(vPosition.z * 15.0 + time * 7.0);
+                        float ripple2 = cos(vPosition.x * 12.0 + time * 8.0) * sin(vPosition.z * 25.0 + time * 12.0);
+                        float combinedRipples = (ripple1 + ripple2) * 0.5;
+                        
+                        float shallowFoam = 0.0;
+                        if (vWaterDepth < 0.2) {
+                            shallowFoam = sin(vPosition.x * 50.0 + time * 20.0) * cos(vPosition.z * 40.0 + time * 15.0) * (0.2 - vWaterDepth);
+                            shallowFoam = clamp(shallowFoam * 5.0, 0.0, 1.0);
+                        }
+                        
+                        waterColor += combinedRipples * turbulenceStrength;
+                        waterColor += shallowFoam * vec3(0.7, 0.7, 0.7);
+                        gl_FragColor = vec4(waterColor, uOpacity);
+                    }`;
+
+                // Seabed
+                const seabedGeometry = new THREE.PlaneGeometry(tankWidth, tankDepth, 200, 100);
+                const positions = seabedGeometry.attributes.position.array;
+                for (let i = 0; i < positions.length; i += 3) {
+                    const worldX = positions[i];
+                    if (worldX > beachStartX) {
+                        const progress = (worldX - beachStartX) / (beachEndX - beachStartX);
+                        positions[i+2] = seabedMinY + (beachTopY - seabedMinY) * progress;
+                    } else {
+                        positions[i+2] = seabedMinY;
+                    }
+                }
+                seabedGeometry.attributes.position.needsUpdate = true;
+                seabedGeometry.computeVertexNormals();
+                const seabedMesh = new THREE.Mesh(seabedGeometry, new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
+                seabedMesh.rotation.x = -Math.PI / 2;
+                scene.add(seabedMesh);
+                waveState.seabedMesh = seabedMesh;
+                
+                // Water
+                const waterGeometry = new THREE.PlaneGeometry(tankWidth, tankDepth, 200, 200);
+                const waterUniforms = {
+                    time: { value: 0 }, amplitude: { value: waveParams.amplitude }, frequency: { value: waveParams.frequency }, speed: { value: waveParams.speed },
+                    uInitialWaterLevel: { value: initialWaterLevel }, uTankWidth: { value: tankWidth },
+                    uTopColor: { value: new THREE.Color(0x88ccff) }, uBottomColor: { value: new THREE.Color(0x0077be) }, uOpacity: { value: 0.95 },
+                    uSeabedMinY: { value: seabedMinY }, uBeachTopY: { value: beachTopY }, uBeachStartX: { value: beachStartX }, uBeachEndX: { value: beachEndX },
+                    uLeftPushPower: { value: waveParams.leftPushPower }
+                };
+                const waterMaterial = new THREE.ShaderMaterial({ uniforms: waterUniforms, vertexShader: waterVertexShader, fragmentShader: waterFragmentShader, transparent: true, side: THREE.DoubleSide });
+                const waterMesh = new THREE.Mesh(waterGeometry, waterMaterial);
+                waterMesh.rotation.x = -Math.PI / 2;
+                scene.add(waterMesh);
+                waveState.waterMesh = waterMesh;
+
+                // Nodes
+                const nodeMaterial = new THREE.MeshPhysicalMaterial({ color: 0xffff00, roughness: 0.3, metalness: 0.0 });
+                for (let i = 0; i < 100; i++) {
+                    const nodeMesh = new THREE.Mesh(new THREE.SphereGeometry(waveState.nodeRadius, 16, 16), nodeMaterial);
+                    nodeMesh.userData.velocity = new THREE.Vector3();
+                    nodeMesh.position.set((Math.random() - 0.5) * tankWidth * 0.8, beachTopY + 1.0 + Math.random() * 2, (Math.random() - 0.5) * tankDepth * 0.8);
+                    waveState.nodes.push(nodeMesh);
+                    scene.add(nodeMesh);
+                }
+            }
+
+            function getWaterHeightAt(worldX, worldZ, time) {
+                 const { amplitude, frequency, speed, leftPushPower } = waveParams;
+                 const { initialWaterLevel, tankWidth, beachStartX, beachEndX, seabedMinY, beachTopY } = waveState;
+                 let currentWaterY = initialWaterLevel;
+                 
+                 let pushEffect = 0.0;
+                 if (worldX < beachStartX) {
+                    const normalizedX = (worldX - (-tankWidth / 2.0)) / (beachStartX - (-tankWidth / 2.0));
+                    pushEffect = leftPushPower * (1.0 - normalizedX);
+                    pushEffect = Math.max(0.0, pushEffect);
+                 }
+                 pushEffect *= (1.0 + Math.sin(time * 0.5) * 0.5);
+                 currentWaterY += pushEffect;
+                 
+                 currentWaterY += amplitude * Math.sin(-worldX * frequency + time * speed);
+                 currentWaterY += amplitude * 0.5 * Math.cos(worldZ * frequency * 0.7 + time * speed * 1.2);
+
+                 let seabedY;
+                 if (worldX > beachStartX) {
+                    const progress = (worldX - beachStartX) / (beachEndX - beachStartX);
+                    seabedY = seabedMinY + (beachTopY - seabedMinY) * progress;
+                 } else {
+                    seabedY = seabedMinY;
+                 }
+                 currentWaterY = Math.max(currentWaterY, seabedY + 0.05);
+                 return currentWaterY;
+            }
+
+            function updateWaveAnimation(elapsedTime, deltaTime) {
+                if(!waveState.waterMesh) return;
+                waveState.waterMesh.material.uniforms.time.value = elapsedTime;
+
+                const { nodes, nodeRadius, nodeDensity, gravity, waterDensity, dragCoefficient, tankWidth, beachStartX, beachEndX, seabedMinY, beachTopY } = waveState;
+
+                nodes.forEach(node => {
+                    const waterSurfaceY = getWaterHeightAt(node.position.x, node.position.z, elapsedTime);
+                    let seabedHeight;
+                    if (node.position.x > beachStartX) {
+                        const progress = (node.position.x - beachStartX) / (beachEndX - beachStartX);
+                        seabedHeight = seabedMinY + (beachTopY - seabedMinY) * progress;
+                    } else {
+                        seabedHeight = seabedMinY;
+                    }
+
+                    const isSubmerged = node.position.y - nodeRadius < waterSurfaceY;
+                    if (isSubmerged) {
+                        const submergedDepth = Math.max(0, waterSurfaceY - (node.position.y - nodeRadius));
+                        const submergedVolumeFraction = Math.min(1.0, submergedDepth / (2 * nodeRadius));
+                        const nodeVolume = (4/3) * Math.PI * Math.pow(nodeRadius, 3);
+                        const buoyancyForceMagnitude = waterDensity * gravity * nodeVolume * submergedVolumeFraction;
+                        const nodeMass = nodeDensity * waterDensity * nodeVolume;
+                        node.userData.velocity.y += (buoyancyForceMagnitude / nodeMass) * deltaTime;
+                    }
+                    node.userData.velocity.y -= gravity * deltaTime;
+
+                    const currentSpeed = node.userData.velocity.length();
+                    if (currentSpeed > 0.001) {
+                         const dragForceMagnitude = dragCoefficient * currentSpeed;
+                         const nodeMass = nodeDensity * waterDensity * (4/3 * Math.PI * Math.pow(nodeRadius, 3));
+                         const dragAcceleration = dragForceMagnitude / nodeMass;
+                         node.userData.velocity.addScaledVector(node.userData.velocity, -dragAcceleration / currentSpeed * deltaTime);
+                    }
+                    
+                    node.position.add(node.userData.velocity.clone().multiplyScalar(deltaTime));
+                    
+                    if (node.position.y - nodeRadius < seabedHeight) {
+                        node.position.y = seabedHeight + nodeRadius;
+                        node.userData.velocity.y *= -0.3; // Inelastic bounce
+                        node.userData.velocity.x *= 0.9;
+                        node.userData.velocity.z *= 0.9;
+                    }
+                });
+            }
+
+            // --- LAPLACE / CONTROL THEORY ---
+            function updateLaplaceParams() { 
+                Object.assign(laplaceParams, { 
+                    func:document.getElementById('laplace-func').value, 
+                    order: parseInt(document.getElementById('laplace-order').value), 
+                    epsilon: parseFloat(document.getElementById('laplace-epsilon').value),
+                    res:parseInt(document.getElementById('laplace-res').value),
+                    view: document.getElementById('laplace-view').value,
+                    reMin: -parseFloat(document.getElementById('laplace-range').value),
+                    reMax: parseFloat(document.getElementById('laplace-range').value),
+                    imMin: -parseFloat(document.getElementById('laplace-range').value),
+                    imMax: parseFloat(document.getElementById('laplace-range').value),
+                    zMin: -parseFloat(document.getElementById('laplace-vscale').value),
+                    zMax: parseFloat(document.getElementById('laplace-vscale').value),
+                });
+                document.getElementById('laplace-order-val').textContent = laplaceParams.order;
+                document.getElementById('laplace-epsilon-val').textContent = laplaceParams.epsilon.toFixed(2);
+                document.getElementById('laplace-res-val').textContent = laplaceParams.res;
+                document.getElementById('laplace-range-val').textContent = laplaceParams.reMax;
+                document.getElementById('laplace-vscale-val').textContent = laplaceParams.zMax;
+
+                const isCheby = laplaceParams.func === 'chebyshev';
+                document.getElementById('cheby-controls').classList.toggle('hidden', !isCheby);
+
+                let funcStr = `H(s)`;
+                if(laplaceParams.func === 'butterworth') {
+                    funcStr = `|H(j\\omega)| = \\frac{1}{\\sqrt{1+(\\omega/\\omega_c)^{2n}}}`;
+                } else if (isCheby) {
+                     funcStr = `|H(j\\omega)| = \\frac{1}{\\sqrt{1+\\epsilon^2 T_n^2(\\omega/\\omega_c)}}`;
+                }
+                renderStaticEquation('equation-display', funcStr);
+            }
+             function chebyshevT(n, x) {
+                if (Math.abs(x) <= 1) return Math.cos(n * Math.acos(x));
+                else return Math.cosh(n * Math.acosh(x));
+            }
+            function createLaplaceSurface() { 
+                updateLaplaceParams();
+                camera.position.set(0, -5, 3); 
+                controls.target.set(0, 0, 0); 
+                
+                const { res, reMin, reMax, imMin, imMax, view, zMin, zMax } = laplaceParams; 
+                const geometry = new THREE.PlaneGeometry(reMax - reMin, imMax - imMin, res, res); 
+                const vertices=geometry.attributes.position.array; 
+                let minZ = Infinity, maxZ = -Infinity; 
+                let zValues = []; 
+                for(let i=0; i<=res; i++) {
+                    for(let j=0; j<=res; j++) { 
+                        const s = new Complex(reMin+j*(reMax-reMin)/res, imMin+i*(imMax-imMin)/res); 
+                        let Fs;
+                        if(laplaceParams.func === 'butterworth') {
+                            const s_2n = Complex.pow(s, new Complex(2 * laplaceParams.order, 0));
+                             Fs = new Complex(1,0).div(new Complex(1,0).add(s_2n.mul(new Complex(Math.pow(-1, laplaceParams.order), 0))));
+                        } else { // Chebyshev
+                            const s_scaled = new Complex(s.re, s.im); // Assuming omega_c = 1
+                            const T_n = chebyshevT(laplaceParams.order, s_scaled.re);
+                            Fs = new Complex(1,0).div(new Complex(1,0).add(new Complex(laplaceParams.epsilon**2 * T_n**2, 0)).abs());
+                        }
+
+                        let z;
+                        switch(view) {
+                            case 'log_magnitude': z = 20 * Math.log10(Fs.abs()); break;
+                            case 'phase': z = Fs.arg(); break;
+                            case 'real': z = Fs.re; break;
+                        }
+                        
+                        if(!isFinite(z)) z = zMin; 
+                        zValues.push(z); 
+                        if(isFinite(z)) { 
+                            if(z < minZ) minZ = z; 
+                            if(z > maxZ) maxZ = z; 
+                        } 
+                    }
+                }
+                if (!isFinite(minZ) || maxZ - minZ < 1e-3) { minZ = zMin; maxZ = zMax; } 
+                
+                const colors = new Float32Array(vertices.length); 
+                for (let i=0; i < zValues.length; i++) { 
+                    vertices[i*3+2] = Math.max(zMin, Math.min(maxZ, zValues[i])); 
+                    const normalizedZ = (zValues[i] - minZ) / (maxZ - minZ); 
+                    const hue = 0.7 - normalizedZ * 0.7; 
+                    const color = new THREE.Color().setHSL(hue, 0.9, 0.6); 
+                    colors[i*3]=color.r; colors[i*3+1]=color.g; colors[i*3+2]=color.b; 
+                } 
+                geometry.setAttribute('color',new THREE.BufferAttribute(colors,3)); 
+                geometry.attributes.position.needsUpdate = true; 
+                geometry.computeVertexNormals(); 
+                activeObject = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({side:THREE.DoubleSide,vertexColors:true})); 
+                activeObject.rotation.x = -Math.PI/2; 
+                scene.add(activeObject);
+            }
+
+            // --- SIGNAL PROCESSING ---
+            function updateSignalParams() {
+                 Object.assign(signalParams, { 
+                    type: document.getElementById('signal-type').value,
+                    carrierFreq: parseFloat(document.getElementById('signal-carrier').value),
+                    modFreq: parseFloat(document.getElementById('signal-mod').value),
+                    modIndex: parseFloat(document.getElementById('signal-index').value),
+                    dutyCycle: parseFloat(document.getElementById('signal-duty').value),
+                    A: parseFloat(document.getElementById('signal-A').value),
+                    mu: parseFloat(document.getElementById('signal-mu').value)
+                 });
+
+                 const isMod = ['am', 'fm'].includes(signalParams.type);
+                 const isPwm = signalParams.type === 'pwm';
+                 const isComp = ['mu-law', 'a-law'].includes(signalParams.type);
+                 const isSimple = ['sawtooth', 'triangle'].includes(signalParams.type);
+
+                 document.getElementById('signal-mod-controls').classList.toggle('hidden', isComp);
+                 document.getElementById('signal-comp-controls').classList.toggle('hidden', !isComp);
+
+                 document.getElementById('signal-mod-freq-label').classList.toggle('hidden', isPwm);
+                 document.getElementById('signal-mod').classList.toggle('hidden', isPwm);
+                 document.getElementById('signal-mod-index-label').classList.toggle('hidden', isPwm || isSimple);
+                 document.getElementById('signal-index').classList.toggle('hidden', isPwm || isSimple);
+                 document.getElementById('signal-duty-cycle-label').classList.toggle('hidden', !isPwm);
+                 document.getElementById('signal-duty').classList.toggle('hidden', !isPwm);
+
+                 document.getElementById('signal-carrier-val').textContent = signalParams.carrierFreq.toFixed(1);
+                 document.getElementById('signal-mod-val').textContent = signalParams.modFreq.toFixed(1);
+                 document.getElementById('signal-index-val').textContent = signalParams.modIndex.toFixed(1);
+                 document.getElementById('signal-duty-val').textContent = signalParams.dutyCycle.toFixed(2);
+                 document.getElementById('signal-mu-val').textContent = signalParams.mu;
+                 document.getElementById('signal-A-val').textContent = signalParams.A.toFixed(1);
+
+                let funcStr = '';
+                if(signalParams.type === 'am') funcStr = `y(t) = (1 + \\beta \\sin(\\omega_m t)) \\sin(\\omega_c t)`;
+                if(signalParams.type === 'fm') funcStr = `y(t) = \\sin(\\omega_c t + \\beta \\sin(\\omega_m t))`;
+                if(signalParams.type === 'pwm') funcStr = `\\text{Duty Cycle} = ${signalParams.dutyCycle.toFixed(2)}`;
+                if(signalParams.type === 'sawtooth') funcStr = `y(t) = 2(t/T - \\lfloor t/T + 1/2 \\rfloor)`;
+                if(signalParams.type === 'triangle') funcStr = `y(t) = |2(t/T - \\lfloor t/T + 1/2 \\rfloor)|`;
+                if(signalParams.type === 'mu-law') funcStr = `F(x) = \\text{sgn}(x) \\frac{\\ln(1+\\mu|x|)}{\\ln(1+\\mu)}`;
+                if(signalParams.type === 'a-law') funcStr = `F(x) = \\text{sgn}(x) \\frac{A|x|}{1+\\ln(A)}, |x| < 1/A`;
+                renderStaticEquation('equation-display', funcStr);
+            }
+             function createSignalPlot() {
+                updateSignalParams();
+                camera.position.set(0, 0, 10);
+                controls.target.set(0,0,0);
+                const points = [];
+                const res = 1000;
+                const xMax = 5;
+
+                for(let i=0; i<=res; i++) {
+                    const t = -xMax + (i/res) * 2 * xMax;
+                    let y = 0;
+                    switch(signalParams.type) {
+                        case 'am':
+                            y = (1 + signalParams.modIndex * Math.sin(signalParams.modFreq * t)) * Math.sin(signalParams.carrierFreq * t);
+                            break;
+                        case 'fm':
+                             y = Math.sin(signalParams.carrierFreq * t + signalParams.modIndex * Math.sin(signalParams.modFreq * t));
+                             break;
+                        case 'pwm':
+                             const T_pwm = 2 * Math.PI / signalParams.carrierFreq;
+                             y = ((t % T_pwm) < (T_pwm * signalParams.dutyCycle)) ? 1 : -1;
+                             break;
+                        case 'sawtooth':
+                            const T_saw = 2 * Math.PI / signalParams.carrierFreq;
+                            y = 2 * (t/T_saw - Math.floor(t/T_saw + 0.5));
+                            break;
+                         case 'triangle':
+                            const T_tri = 2 * Math.PI / signalParams.carrierFreq;
+                            y = Math.abs(2 * (t/T_tri - Math.floor(t/T_tri + 0.5))) * 2 - 1;
+                            break;
+                        case 'mu-law':
+                            const mu_x = Math.abs(t / xMax);
+                            y = Math.sign(t) * Math.log(1 + signalParams.mu * mu_x) / Math.log(1 + signalParams.mu);
+                            break;
+                        case 'a-law':
+                            const A = signalParams.A;
+                            const a_x = Math.abs(t / xMax);
+                            if (a_x < 1/A) {
+                                y = Math.sign(t) * (A * a_x) / (1 + Math.log(A));
+                            } else {
+                                y = Math.sign(t) * (1 + Math.log(A*a_x)) / (1 + Math.log(A));
+                            }
+                            break;
+                    }
+                     points.push(new THREE.Vector3(t, y, 0));
+                }
+                activeObject = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: 0x00ff88 }));
+                scene.add(activeObject);
+             }
+            
+            // --- STRESS TENSOR ---
+            function updateStressParams() {
+                Object.assign(stressParams, {
+                    s_xx: parseFloat(document.getElementById('stress-xx').value),
+                    s_yy: parseFloat(document.getElementById('stress-yy').value),
+                    s_zz: parseFloat(document.getElementById('stress-zz').value),
+                    t_xy: parseFloat(document.getElementById('stress-xy').value),
+                    t_yz: parseFloat(document.getElementById('stress-yz').value),
+                    t_zx: parseFloat(document.getElementById('stress-zx').value),
+                    showPrincipal: document.getElementById('stress-show-principal').checked,
+                    showMohr: document.getElementById('stress-show-mohr').checked
+                });
+                document.getElementById('stress-xx-val').textContent = stressParams.s_xx.toFixed(1);
+                document.getElementById('stress-yy-val').textContent = stressParams.s_yy.toFixed(1);
+                document.getElementById('stress-zz-val').textContent = stressParams.s_zz.toFixed(1);
+                document.getElementById('stress-xy-val').textContent = stressParams.t_xy.toFixed(1);
+                document.getElementById('stress-yz-val').textContent = stressParams.t_yz.toFixed(1);
+                document.getElementById('stress-zx-val').textContent = stressParams.t_zx.toFixed(1);
+                renderStaticEquation('equation-display', `\\sigma = \\begin{bmatrix} ${stressParams.s_xx} & ${stressParams.t_xy} & ${stressParams.t_zx} \\\\ ${stressParams.t_xy} & ${stressParams.s_yy} & ${stressParams.t_yz} \\\\ ${stressParams.t_zx} & ${stressParams.t_yz} & ${stressParams.s_zz} \\end{bmatrix}`);
+            }
+            function createStressTensorVis() {
+                updateStressParams();
+                camera.position.set(10, 10, 15);
+                controls.target.set(0,0,0);
+                activeObject = new THREE.Group();
+                const CUBE_SIZE = 5;
+                
+                const cubeGeom = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
+                const cubeMat = new THREE.MeshPhongMaterial({color: 0xaaaaaa, transparent: true, opacity: 0.2});
+                const cube = new THREE.Mesh(cubeGeom, cubeMat);
+                const edges = new THREE.EdgesGeometry(cubeGeom);
+                const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xffffff }));
+                activeObject.add(cube);
+                activeObject.add(line);
+
+                const { s_xx, s_yy, s_zz, t_xy, t_yz, t_zx } = stressParams;
+                
+                // Add arrows for normal and shear stresses on faces
+                const addStressArrow = (origin, dir, length, color) => {
+                    if (Math.abs(length) < 0.1) return;
+                    activeObject.add(new THREE.ArrowHelper(dir, origin, Math.abs(length), color, 0.5, 0.3));
+                }
+                const S2 = CUBE_SIZE / 2;
+                // Normals
+                addStressArrow(new THREE.Vector3(S2, 0, 0), new THREE.Vector3(1,0,0), s_xx, 0xff0000); // xx on +x face
+                addStressArrow(new THREE.Vector3(0, S2, 0), new THREE.Vector3(0,1,0), s_yy, 0xff0000); // yy on +y face
+                addStressArrow(new THREE.Vector3(0, 0, S2), new THREE.Vector3(0,0,1), s_zz, 0xff0000); // zz on +z face
+                // Shears
+                addStressArrow(new THREE.Vector3(S2, 0, 0), new THREE.Vector3(0,1,0), t_xy, 0x00ff00); // xy on +x face
+                addStressArrow(new THREE.Vector3(S2, 0, 0), new THREE.Vector3(0,0,1), t_zx, 0x0000ff); // xz on +x face
+                addStressArrow(new THREE.Vector3(0, S2, 0), new THREE.Vector3(1,0,0), t_xy, 0x00ff00); // yx on +y face
+                addStressArrow(new THREE.Vector3(0, S2, 0), new THREE.Vector3(0,0,1), t_yz, 0xffff00); // yz on +y face
+                addStressArrow(new THREE.Vector3(0, 0, S2), new THREE.Vector3(1,0,0), t_zx, 0x0000ff); // zx on +z face
+                addStressArrow(new THREE.Vector3(0, 0, S2), new THREE.Vector3(0,1,0), t_yz, 0xffff00); // zy on +z face
+
+
+                const tensor = [[s_xx, t_xy, t_zx], [t_xy, s_yy, t_yz], [t_zx, t_yz, s_zz]];
+                try {
+                    const { values, eigenvectors } = math.eigs(tensor);
+                    const [s1, s2, s3] = values.sort((a,b) => b - a);
+                    if (stressParams.showPrincipal) {
+                        const v1 = new THREE.Vector3(eigenvectors[0][0], eigenvectors[1][0], eigenvectors[2][0]);
+                        const v2 = new THREE.Vector3(eigenvectors[0][1], eigenvectors[1][1], eigenvectors[2][1]);
+                        const v3 = new THREE.Vector3(eigenvectors[0][2], eigenvectors[1][2], eigenvectors[2][2]);
+                        activeObject.add(new THREE.ArrowHelper(v1, new THREE.Vector3(0,0,0), s1, 0xffaa00, 1, 0.5));
+                        activeObject.add(new THREE.ArrowHelper(v2, new THREE.Vector3(0,0,0), s2, 0xffaa00, 1, 0.5));
+                        activeObject.add(new THREE.ArrowHelper(v3, new THREE.Vector3(0,0,0), s3, 0xffaa00, 1, 0.5));
+                    }
+                    if (stressParams.showMohr) {
+                        const mohrGroup = new THREE.Group();
+                        const createCircle = (c, r) => new THREE.LineLoop(new THREE.CircleGeometry(r, 64).translate(c, 0, 0), new THREE.LineBasicMaterial({color:0xffffff}));
+                        mohrGroup.add(createCircle((s1+s3)/2, (s1-s3)/2));
+                        mohrGroup.add(createCircle((s1+s2)/2, (s1-s2)/2));
+                        mohrGroup.add(createCircle((s2+s3)/2, (s2-s3)/2));
+                        mohrGroup.position.set(0, -8, 0); 
+                        activeObject.add(mohrGroup);
+                    }
+                     renderStaticEquation('context-display', `\\sigma_1 = ${s1.toFixed(2)}, \\sigma_2 = ${s2.toFixed(2)}, \\sigma_3 = ${s3.toFixed(2)}`);
+                } catch(e) {
+                    console.error("Could not compute eigenvalues:", e);
+                    renderStaticEquation('context-display', `Error computing eigenvalues.`);
+                }
+                
+                scene.add(activeObject);
+            }
+            
+            // --- TRIBOLOGY ---
+            function updateTribologyParams() {
+                 Object.assign(tribologyParams, {
+                    angle: parseFloat(document.getElementById('tribo-angle').value),
+                    mass: parseFloat(document.getElementById('tribo-mass').value),
+                    mu_s: parseFloat(document.getElementById('tribo-mus').value),
+                    mu_k: parseFloat(document.getElementById('tribo-muk').value)
+                 });
+                 document.getElementById('tribo-angle-val').textContent = tribologyParams.angle.toFixed(0);
+                 document.getElementById('tribo-mass-val').textContent = tribologyParams.mass.toFixed(1);
+                 document.getElementById('tribo-mus-val').textContent = tribologyParams.mu_s.toFixed(2);
+                 document.getElementById('tribo-muk-val').textContent = tribologyParams.mu_k.toFixed(2);
+            }
+            function createTribologySim() {
+                updateTribologyParams();
+                camera.position.set(0, 5, 20);
+                controls.target.set(0,0,0);
+                activeObject = new THREE.Group();
+                const planeGeom = new THREE.PlaneGeometry(20, 10);
+                const planeMat = new THREE.MeshPhongMaterial({color: 0x888888});
+                const plane = new THREE.Mesh(planeGeom, planeMat);
+                plane.rotation.x = -Math.PI / 2;
+                
+                const blockGeom = new THREE.BoxGeometry(1, 1, 1);
+                const blockMat = new THREE.MeshPhongMaterial({color: 0x00aaff});
+                const block = new THREE.Mesh(blockGeom, blockMat);
+                block.position.y = 0.5;
+
+                const angleRad = tribologyParams.angle * Math.PI / 180;
+                activeObject.rotation.z = angleRad;
+                activeObject.add(plane);
+                activeObject.add(block);
+                
+                tribologyState = { block, velocity: 0, position: 0, time: 0 };
+                scene.add(activeObject);
+                 renderStaticEquation('equation-display', `F_{net} = mg(\\sin\\theta - \\mu \\cos\\theta)`);
+            }
+             function updateTribologyAnimation() {
+                const g = 9.81;
+                const { angle, mass, mu_s, mu_k } = tribologyParams;
+                const angleRad = angle * Math.PI / 180;
+                
+                const Fg_parallel = mass * g * Math.sin(angleRad);
+                const Fn = mass * g * Math.cos(angleRad);
+                const Fs_max = mu_s * Fn;
+                
+                let isMoving = tribologyState.velocity > 0 || Fg_parallel > Fs_max;
+                let accel = 0;
+                
+                if (isMoving) {
+                    const Fk = mu_k * Fn;
+                    const Fnet = Fg_parallel - Fk;
+                    accel = Fnet / mass;
+                }
+                
+                const dt = 0.016;
+                tribologyState.velocity += accel * dt;
+                if(tribologyState.velocity < 0) tribologyState.velocity = 0;
+                tribologyState.position -= tribologyState.velocity * dt;
+
+                tribologyState.block.position.x = tribologyState.position;
+            }
+
+            // --- TORQUE & GEARING (FIXED) ---
+            function updateGearingParams() {
+                 Object.assign(gearingParams, {
+                    inputType: document.getElementById('gear-input-type').value,
+                    inputTorque: parseFloat(document.getElementById('gear-torque').value),
+                    sineAmplitude: parseFloat(document.getElementById('gear-sine-amp').value),
+                    sineFrequency: parseFloat(document.getElementById('gear-sine-freq').value),
+                    driveGearTeeth: parseInt(document.getElementById('gear-drive-teeth').value),
+                    idlerGearTeeth: parseInt(document.getElementById('gear-idler-teeth').value),
+                    outputGearTeeth: parseInt(document.getElementById('gear-output-teeth').value),
+                    momentOfInertia: parseFloat(document.getElementById('gear-inertia').value),
+                    friction: parseFloat(document.getElementById('gear-friction').value),
+                    load: parseFloat(document.getElementById('gear-load').value),
+                    material: document.getElementById('gear-material').value
+                 });
+
+                 document.getElementById('gear-torque-val').textContent = gearingParams.inputTorque.toFixed(1);
+                 document.getElementById('gear-sine-amp-val').textContent = gearingParams.sineAmplitude.toFixed(1);
+                 document.getElementById('gear-sine-freq-val').textContent = gearingParams.sineFrequency.toFixed(1);
+                 document.getElementById('gear-drive-teeth-val').textContent = gearingParams.driveGearTeeth;
+                 document.getElementById('gear-idler-teeth-val').textContent = gearingParams.idlerGearTeeth;
+                 document.getElementById('gear-output-teeth-val').textContent = gearingParams.outputGearTeeth;
+                 document.getElementById('gear-inertia-val').textContent = gearingParams.momentOfInertia.toFixed(2);
+                 document.getElementById('gear-friction-val').textContent = gearingParams.friction.toFixed(2);
+                 document.getElementById('gear-load-val').textContent = gearingParams.load.toFixed(1);
+
+                 const isConst = gearingParams.inputType === 'constant';
+                 document.getElementById('gear-const-torque-group').classList.toggle('hidden', !isConst);
+                 document.getElementById('gear-sine-torque-group').classList.toggle('hidden', isConst);
+
+                 renderStaticEquation('equation-display', `\\tau_{net} = I_{eq} \\alpha = \\tau_{in} - \\tau_{friction,eq} - \\tau_{load,eq}`);
+            }
+
+            function createGear(teeth, radius, color = 0xaaaaaa) {
+                const shape = new THREE.Shape();
+                const toothHeight = radius * 0.2;
+                const toothAngle = (2 * Math.PI) / teeth;
+                const toothWidthAngle = toothAngle * 0.4;
+
+                for (let i = 0; i < teeth; i++) {
+                    const angle = i * toothAngle;
+                    let p1x = (radius - toothHeight/2) * Math.cos(angle - toothAngle/2);
+                    let p1y = (radius - toothHeight/2) * Math.sin(angle - toothAngle/2);
+                    let p2x = (radius + toothHeight/2) * Math.cos(angle - toothWidthAngle/2);
+                    let p2y = (radius + toothHeight/2) * Math.sin(angle - toothWidthAngle/2);
+                    let p3x = (radius + toothHeight/2) * Math.cos(angle + toothWidthAngle/2);
+                    let p3y = (radius + toothHeight/2) * Math.sin(angle + toothWidthAngle/2);
+                    let p4x = (radius - toothHeight/2) * Math.cos(angle + toothAngle/2);
+                    let p4y = (radius - toothHeight/2) * Math.sin(angle + toothAngle/2);
+
+                    if (i === 0) shape.moveTo(p1x, p1y);
+                    shape.lineTo(p2x, p2y);
+                    shape.lineTo(p3x, p3y);
+                    shape.lineTo(p4x, p4y);
+                }
+                const extrudeSettings = { depth: 0.5, bevelEnabled: false };
+                const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+                geometry.center();
+                const material = new THREE.MeshPhongMaterial({ color: color, shininess: 80 });
+                const mesh = new THREE.Mesh(geometry, material);
+                return mesh;
+            }
+            
+            function createGearingVis() {
+                updateGearingParams();
+                camera.position.set(0, 10, 20);
+                controls.target.set(0,0,0);
+                activeObject = new THREE.Group();
+
+                const { driveGearTeeth, idlerGearTeeth, outputGearTeeth } = gearingParams;
+                const baseRadius = 0.1;
+                const driveRadius = driveGearTeeth * baseRadius;
+                const idlerRadius = idlerGearTeeth * baseRadius;
+                const outputRadius = outputGearTeeth * baseRadius;
+
+                const driveGear = createGear(driveGearTeeth, driveRadius, 0x0055ff);
+                const idlerGear = createGear(idlerGearTeeth, idlerRadius, 0xffaa00);
+                const outputGear = createGear(outputGearTeeth, outputRadius, 0x00ff55);
+
+                const idlerX = driveRadius + idlerRadius;
+                const outputY = -(idlerRadius + outputRadius);
+                idlerGear.position.x = idlerX;
+                outputGear.position.set(idlerX, outputY, 0);
+                
+                driveGear.rotation.x = -Math.PI/2;
+                idlerGear.rotation.x = -Math.PI/2;
+                outputGear.rotation.x = -Math.PI/2;
+
+                activeObject.add(driveGear, idlerGear, outputGear);
+                
+                gearingState = {
+                    gears: [
+                        { mesh: driveGear, omega: 0, phi: 0, teeth: driveGearTeeth },
+                        { mesh: idlerGear, omega: 0, phi: 0, teeth: idlerGearTeeth },
+                        { mesh: outputGear, omega: 0, phi: 0, teeth: outputGearTeeth },
+                    ],
+                    time: 0
+                };
+                scene.add(activeObject);
+            }
+
+            function updateGearingAnimation(elapsedTime, deltaTime) {
+                if(!gearingState.gears || !isFinite(deltaTime) || deltaTime > 0.1) return;
+
+                const p = gearingParams;
+                const s = gearingState;
+                const [drive, idler, output] = s.gears;
+                
+                // 1. Calculate equivalent inertia and torques referred to the drive gear
+                const ratio_drive_idler = drive.teeth / idler.teeth;
+                const ratio_drive_output = drive.teeth / output.teeth;
+
+                // Inertia of each gear is proportional to its tooth count (as a proxy for radius^2)
+                const I_drive = p.momentOfInertia;
+                const I_idler = p.momentOfInertia * (idler.teeth / drive.teeth)**2;
+                const I_output = p.momentOfInertia * (output.teeth / drive.teeth)**2;
+
+                const I_eq = I_drive + I_idler * (ratio_drive_idler)**2 + I_output * (ratio_drive_output)**2;
+                
+                // 2. Calculate total torque on the system referred to the drive gear
+                let inputTorque = (p.inputType === 'constant') 
+                    ? p.inputTorque 
+                    : p.sineAmplitude * Math.sin(2 * Math.PI * p.sineFrequency * elapsedTime);
+
+                // Friction torque on each gear, referred to the drive gear
+                const frictionTorque_drive = p.friction * Math.sign(drive.omega);
+                const frictionTorque_idler = (p.friction * Math.sign(idler.omega)) * ratio_drive_idler;
+                const frictionTorque_output = (p.friction * Math.sign(output.omega)) * ratio_drive_output;
+                const totalFrictionTorque = frictionTorque_drive + frictionTorque_idler + frictionTorque_output;
+
+                // External load torque, referred to the drive gear
+                const loadTorque = p.load * Math.sign(output.omega) * ratio_drive_output;
+
+                const netTorque = inputTorque - totalFrictionTorque - loadTorque;
+
+                // 3. Update kinematics
+                const alpha_drive = netTorque / I_eq;
+                drive.omega += alpha_drive * deltaTime;
+                
+                // Propagate velocities through the gear train
+                idler.omega = -drive.omega * ratio_drive_idler;
+                output.omega = -idler.omega * (idler.teeth / output.teeth);
+
+                s.gears.forEach(g => {
+                    if (isFinite(g.omega)) {
+                        g.phi += g.omega * deltaTime;
+                        g.mesh.rotation.z = g.phi;
+                    }
+                });
+                
+                // 4. Update visuals and readouts
+                const outputTorque = p.load * Math.sign(output.omega);
+                const outputPower = Math.abs(outputTorque * output.omega);
+                const inputPower = Math.abs(inputTorque * drive.omega);
+                const efficiency = (inputPower > 0.01) ? (outputPower / inputPower) * 100 : 0;
+                
+                const velText = output.omega.toFixed(1);
+                const torqueText = outputTorque.toFixed(1);
+                const powerText = outputPower.toFixed(1);
+                const effText = Math.min(100, Math.max(0, efficiency)).toFixed(0);
+
+                document.getElementById('gear-output-readout').textContent = `Vel: ${velText}, Tq: ${torqueText}, Pwr: ${powerText}, Eff: ${effText}%`;
+            }
+
+            // --- INTEGRAL ---
+            function getIntegralFunc(x, funcName) { switch(funcName) { case 'x_squared': return x*x; case 'sin_x': return Math.sin(x); case 'cos_x': return Math.cos(x); case 'tan_x': return Math.tan(x); case 'exp_x': return Math.exp(x); case 'one_over_x': return (Math.abs(x) < 1e-6) ? 0 : 1/x; case 'one_over_one_plus_x_squared': return 1 / (1 + x*x); case 'ln_x': return (x > 1e-6) ? Math.log(x) : -10; case 'gaussian': return Math.exp(-x*x); case 'sinc': return (Math.abs(x) < 1e-6) ? 1 : Math.sin(x)/x; case 'x_sin_x': return x * Math.sin(x); default: return 0; } }
+            function updateIntegralParams() { Object.assign(integralParams, { func: document.getElementById('integral-func').value, a: parseFloat(document.getElementById('integral-a').value), b: parseFloat(document.getElementById('integral-b').value), inf_a: document.getElementById('integral-inf-a').checked, inf_b: document.getElementById('integral-inf-b').checked, method: document.getElementById('integral-method').value, steps: parseInt(document.getElementById('integral-steps').value), practicalInfinity: parseInt(document.getElementById('integral-inf').value) }); document.getElementById('integral-a').disabled = integralParams.inf_a; document.getElementById('integral-b').disabled = integralParams.inf_b; if (integralParams.a > integralParams.b && !integralParams.inf_a && !integralParams.inf_b) { [integralParams.a, integralParams.b] = [integralParams.b, integralParams.a]; document.getElementById('integral-a').value = integralParams.a; document.getElementById('integral-b').value = integralParams.b; } document.getElementById('integral-a-val').textContent = integralParams.a.toFixed(1); document.getElementById('integral-b-val').textContent = integralParams.b.toFixed(1); document.getElementById('integral-steps-val').textContent = integralParams.steps; document.getElementById('integral-inf-val').textContent = integralParams.practicalInfinity;}
+            function createIntegralVisualization() { updateIntegralParams(); if(activeObject){scene.remove(activeObject); activeObject.geometry.dispose(); activeObject.material.dispose();} if(integralArea){scene.remove(integralArea); integralArea.geometry.dispose(); integralArea.material.dispose();} const { func, method, steps, a, b, inf_a, inf_b, practicalInfinity } = integralParams; const effective_a = inf_a ? -practicalInfinity : a; const effective_b = inf_b ? practicalInfinity : b; const plot_a = Math.min(a, -10); const plot_b = Math.max(b, 10); camera.position.set((effective_a + effective_b) / 2, 2, 15); controls.target.set((effective_a + effective_b) / 2, 2, 0); const points = []; for(let x = plot_a; x <= plot_b; x += (plot_b - plot_a) / 1000) points.push(new THREE.Vector3(x, getIntegralFunc(x, integralParams.func), 0)); activeObject = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: 0xffffff })); scene.add(activeObject); const shape = new THREE.Shape(); shape.moveTo(effective_a, 0); let integralValue = 0; const dx = (effective_b - effective_a) / steps; if (method === 'simpson' && steps % 2 !== 0) { console.error("Simpson's rule requires an even number of steps."); return; } for (let i = 0; i <= steps; i++) { const x1 = effective_a + i * dx; shape.lineTo(x1, getIntegralFunc(x1, func)); } shape.lineTo(effective_b, 0); shape.lineTo(effective_a, 0); if (method === 'rectangle') { for (let i = 0; i < steps; i++) { const mid_x = effective_a + (i + 0.5) * dx; integralValue += getIntegralFunc(mid_x, func) * dx; } } else if (method === 'trapezoid') { for (let i = 0; i < steps; i++) { const x1 = effective_a + i * dx; integralValue += (getIntegralFunc(x1, func) + getIntegralFunc(x1 + dx, func)) / 2 * dx; } } else if (method === 'simpson') { integralValue = getIntegralFunc(effective_a, func) + getIntegralFunc(effective_b, func); for (let i = 1; i < steps; i++) { const x = effective_a + i * dx; integralValue += (i % 2 === 0 ? 2 : 4) * getIntegralFunc(x, func); } integralValue *= dx / 3; } integralArea = new THREE.Mesh(new THREE.ShapeGeometry(shape), new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.DoubleSide, transparent: true, opacity: 0.5 })); scene.add(integralArea); let funcStr = "f(x)"; switch(func) { case 'x_squared':funcStr="x^2";break; case 'sin_x':funcStr="\\sin(x)";break; case 'cos_x':funcStr="\\cos(x)";break; case 'tan_x':funcStr="\\tan(x)";break; case 'exp_x':funcStr="e^x";break; case 'one_over_x':funcStr="1/x";break; case 'one_over_one_plus_x_squared':funcStr="\\frac{1}{1+x^2}";break; case 'ln_x':funcStr="\\ln(x)";break; case 'gaussian':funcStr="e^{-x^2}";break; case 'sinc':funcStr="\\text{sinc}(x)";break; case 'x_sin_x':funcStr="x\\sin(x)";break;} const a_str = integralParams.inf_a ? "-\\infty" : a.toFixed(1); const b_str = integralParams.inf_b ? "\\infty" : b.toFixed(1); renderStaticEquation('context-display', `\\int_{${a_str}}^{${b_str}} ${funcStr} \\,dx \\approx ${integralValue.toFixed(4)}`); }
+            
+            // --- NETWORK ---
+            function updateNetworkUIParams() {
+                 Object.assign(networkUIParams, {
+                    nodes: parseInt(document.getElementById('network-nodes').value),
+                    probability: parseFloat(document.getElementById('network-prob').value),
+                    layout: document.getElementById('network-layout').value,
+                    model: document.getElementById('network-model').value,
+                    colorMode: document.getElementById('network-color').value,
+                    sizeMode: document.getElementById('network-size').value,
+                    repulsion: parseFloat(document.getElementById('network-repulsion').value),
+                    attraction: parseFloat(document.getElementById('network-attraction').value),
+                    idealDist: parseFloat(document.getElementById('network-ideal-dist').value),
+                    damping: parseFloat(document.getElementById('network-damping').value),
+                    ba_m: parseInt(document.getElementById('network-ba-m').value),
+                    ba_m0: parseInt(document.getElementById('network-ba-m0').value),
+                    ws_k: parseInt(document.getElementById('network-ws-k').value),
+                    ws_p: parseFloat(document.getElementById('network-ws-p').value),
+                    grid_w: parseInt(document.getElementById('network-grid-w').value),
+                    grid_h: parseInt(document.getElementById('network-grid-h').value),
+                    ring_k: parseInt(document.getElementById('network-ring-k').value),
+                    saturation: parseFloat(document.getElementById('network-saturation').value),
+                    minNodeSize: parseFloat(document.getElementById('network-min-size').value),
+                    maxNodeSize: parseFloat(document.getElementById('network-max-size').value),
+                    edgeOpacity: parseFloat(document.getElementById('network-edge-opacity').value)
+                 });
+                document.getElementById('network-nodes-val').textContent = networkUIParams.nodes;
+                document.getElementById('network-prob-val').textContent = networkUIParams.probability.toFixed(2);
+                document.getElementById('network-repulsion-val').textContent = networkUIParams.repulsion.toFixed(2);
+                document.getElementById('network-attraction-val').textContent = networkUIParams.attraction.toFixed(3);
+                document.getElementById('network-ideal-dist-val').textContent = networkUIParams.idealDist.toFixed(1);
+                document.getElementById('network-damping-val').textContent = networkUIParams.damping.toFixed(2);
+                document.getElementById('network-ba-m-val').textContent = networkUIParams.ba_m;
+                document.getElementById('network-ba-m0-val').textContent = networkUIParams.ba_m0;
+                document.getElementById('network-ws-k-val').textContent = networkUIParams.ws_k;
+                document.getElementById('network-ws-p-val').textContent = networkUIParams.ws_p.toFixed(2);
+                document.getElementById('network-grid-w-val').textContent = networkUIParams.grid_w;
+                document.getElementById('network-grid-h-val').textContent = networkUIParams.grid_h;
+                document.getElementById('network-ring-k-val').textContent = networkUIParams.ring_k;
+                document.getElementById('network-saturation-val').textContent = networkUIParams.saturation.toFixed(2);
+                document.getElementById('network-size-range-val').textContent = `${networkUIParams.minNodeSize.toFixed(1)}-${networkUIParams.maxNodeSize.toFixed(1)}`;
+                document.getElementById('network-edge-opacity-val').textContent = networkUIParams.edgeOpacity.toFixed(2);
+
+                const model = networkUIParams.model;
+                document.getElementById('prob-control').classList.toggle('hidden', model !== 'erdos-renyi');
+                document.getElementById('ba-controls').classList.toggle('hidden', model !== 'barabasi-albert');
+                document.getElementById('ws-controls').classList.toggle('hidden', model !== 'watts-strogatz');
+                document.getElementById('grid-controls').classList.toggle('hidden', model !== 'grid-2d');
+                document.getElementById('ring-controls').classList.toggle('hidden', model !== 'ring-lattice');
+                document.getElementById('network-nodes').disabled = model === 'grid-2d';
+            }
+
+            // --- COMPLEX PLANE (FIXED) ---
+            function updateComplexParams() {
+                Object.assign(complexParams, {
+                    func: document.getElementById('complex-func').value,
+                    res: parseInt(document.getElementById('complex-res').value),
+                    reMin: parseFloat(document.getElementById('complex-re-min').value),
+                    reMax: parseFloat(document.getElementById('complex-re-max').value),
+                    imMin: parseFloat(document.getElementById('complex-im-min').value),
+                    imMax: parseFloat(document.getElementById('complex-im-max').value),
+                    p1a: parseFloat(document.getElementById('complex-p1a').value),
+                    p1b: parseFloat(document.getElementById('complex-p1b').value),
+                    nyquistOmegaMax: parseFloat(document.getElementById('complex-omega').value)
+                });
+                document.getElementById('complex-res-val').textContent = complexParams.res;
+                document.getElementById('complex-p1a-val').textContent = complexParams.p1a.toFixed(1);
+                document.getElementById('complex-p1b-val').textContent = complexParams.p1b.toFixed(1);
+                document.getElementById('complex-omega-val').textContent = complexParams.nyquistOmegaMax.toFixed(0);
+
+                const isNyquist = complexParams.func === 'nyquist';
+                document.getElementById('nyquist-params').classList.toggle('hidden', !isNyquist);
+                document.getElementById('complex-domain-controls').classList.toggle('hidden', isNyquist);
+            }
+
+            function createComplexPlane() {
+                updateComplexParams();
+                const { func } = complexParams;
+                
+                // Set equation
+                let eqStr = '';
+                if(func === 'zeta') eqStr = `f(s) = \\zeta(s)`;
+                else if(func === 'gamma') eqStr = `f(s) = \\Gamma(s)`;
+                else if(func === 'nyquist') eqStr = `G(s) = \\frac{1}{(s+a)(s+b)},\\quad s=j\\omega`;
+                renderStaticEquation('equation-display', eqStr);
+
+                if (func === 'nyquist') {
+                    createNyquistPlot();
+                } else {
+                    createDomainColoringPlot();
+                }
+            }
+
+            function createDomainColoringPlot() {
+                const { func, res, reMin, reMax, imMin, imMax } = complexParams;
+                camera.position.set((reMin+reMax)/2, (imMin+imMax)/2, (reMax - reMin));
+                controls.target.set((reMin+reMax)/2, (imMin+imMax)/2, 0);
+                
+                const geometry = new THREE.PlaneGeometry(reMax - reMin, imMax - imMin, res, res);
+                const colors = new Float32Array((res + 1) * (res + 1) * 3);
+                
+                let i = 0;
+                for (let y = 0; y <= res; y++) {
+                    for (let x = 0; x <= res; x++) {
+                        const s_re = reMin + (x / res) * (reMax - reMin);
+                        const s_im = imMin + (y / res) * (imMax - imMin);
+                        const s = new Complex(s_re, s_im);
+                        let val = new Complex(0,0);
+                        if(func === 'zeta') val = fullZeta(s);
+                        else if(func === 'gamma') val = lanczosGamma(s);
+
+                        const hue = (val.arg() / (2 * Math.PI) + 0.5) % 1;
+                        const sat = 1.0 - Math.exp(-val.abs() * 0.5);
+                        const light = 0.5 + 0.5 * (1.0 - Math.exp(-val.abs() * 0.2));
+                        
+                        const color = new THREE.Color().setHSL(hue, sat, light);
+                        colors[i * 3] = color.r;
+                        colors[i * 3 + 1] = color.g;
+                        colors[i * 3 + 2] = color.b;
+                        i++;
+                    }
+                }
+                geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                const material = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
+                activeObject = new THREE.Mesh(geometry, material);
+                activeObject.position.set((reMin + reMax)/2, (imMin + imMax)/2, 0); 
+                scene.add(activeObject);
+            }
+
+            function createNyquistPlot() {
+                const { p1a, p1b, nyquistOmegaMax, nyquistSteps } = complexParams;
+                const points = [];
+                let maxVal = 0;
+
+                for (let i = 0; i <= nyquistSteps; i++) {
+                    const omega = (i / nyquistSteps) * nyquistOmegaMax;
+                    const s = new Complex(0, omega);
+                    const term1 = s.add(new Complex(p1a, 0));
+                    const term2 = s.add(new Complex(p1b, 0));
+                    const val = new Complex(1,0).div(term1.mul(term2));
+                    if (isFinite(val.re) && isFinite(val.im)) {
+                        points.push(new THREE.Vector3(val.re, val.im, 0));
+                        maxVal = Math.max(maxVal, val.abs());
+                    }
+                }
+                
+                // Add mirror image for negative frequencies
+                for (let i = points.length - 1; i >= 0; i--) {
+                    points.push(new THREE.Vector3(points[i].x, -points[i].y, 0));
+                }
+
+                camera.position.set(0, 0, maxVal > 0 ? maxVal * 4 : 5);
+                controls.target.set(0,0,0);
+                
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                const material = new THREE.LineBasicMaterial({ color: 0x00ffaa });
+                activeObject = new THREE.Line(geometry, material);
+                scene.add(activeObject);
+
+                // Add axes for the Nyquist plot
+                const axesHelper = new THREE.AxesHelper(maxVal > 0 ? maxVal * 1.2 : 1);
+                scene.add(axesHelper);
+
+                // Add the -1 point
+                const critPointGeom = new THREE.SphereGeometry(maxVal * 0.05, 16, 16);
+                const critPointMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+                const critPoint = new THREE.Mesh(critPointGeom, critPointMat);
+                critPoint.position.set(-1, 0, 0);
+                scene.add(critPoint);
+            }
+            
+            function lanczosGamma(s) {
+                const p = [676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+                const g = 7;
+
+                if (s.re < 0.5) {
+                    const one_minus_s = new Complex(1, 0).sub(s);
+                    const pi_s = new Complex(Math.PI * s.re, Math.PI * s.im);
+                    const sin_pi_s = Complex.sin(pi_s);
+                    // Avoid division by zero when sin(pi*s) is zero (at integer s)
+                    if(sin_pi_s.abs() < 1e-9) return new Complex(Infinity, Infinity);
+                    return new Complex(Math.PI, 0).div(sin_pi_s.mul(lanczosGamma(one_minus_s)));
+                }
+
+                s = s.sub(new Complex(1, 0));
+                let x = new Complex(0.99999999999980993, 0);
+                for (let i = 0; i < p.length; i++) {
+                    const term = new Complex(p[i], 0).div(s.add(new Complex(i + 1, 0)));
+                    x = x.add(term);
+                }
+                const t = s.add(new Complex(g + 0.5, 0));
+                const sqrt2pi = Math.sqrt(2 * Math.PI);
+                
+                const t_pow = Complex.pow(t, s.add(new Complex(0.5,0)));
+                const exp_t = new Complex(Math.exp(-t.re) * Math.cos(-t.im), Math.exp(-t.re) * Math.sin(-t.im));
+                
+                return t_pow.mul(exp_t).mul(new Complex(sqrt2pi, 0)).mul(x);
+            }
+            
+            function fullZeta(s) {
+                if (s.re === 1 && s.im === 0) return new Complex(Infinity, Infinity);
+                // Use functional equation for Re(s) < 0.5
+                if (s.re < 0.5) {
+                    const one_minus_s = new Complex(1, 0).sub(s);
+                    const zeta_one_minus_s = fullZeta(one_minus_s); // Recursive call for the other side of the plane
+                    
+                    const two_s = Complex.pow(new Complex(2, 0), s);
+                    const pi_s_minus_1 = Complex.pow(new Complex(Math.PI, 0), s.sub(new Complex(1,0)));
+                    
+                    const pi_s_div_2 = s.mul(new Complex(Math.PI / 2, 0));
+                    const sin_pi_s_div_2 = Complex.sin(pi_s_div_2);
+
+                    const gamma_one_minus_s = lanczosGamma(one_minus_s);
+                    
+                    // Combine all parts: 2^s * pi^(s-1) * sin(pi*s/2) * Gamma(1-s) * zeta(1-s)
+                    let result = two_s;
+                    result = result.mul(pi_s_minus_1);
+                    result = result.mul(sin_pi_s_div_2);
+                    result = result.mul(gamma_one_minus_s);
+                    result = result.mul(zeta_one_minus_s);
+                    
+                    return result;
+                }
+                // Use Dirichlet eta function for Re(s) >= 0.5
+                else {
+                    let eta_s = new Complex(0, 0);
+                    for (let n = 1; n < 2000; n++) { // 2000 terms is a decent approximation
+                        const term = Complex.pow(new Complex(n, 0), s.mul(new Complex(-1, 0)));
+                         if (n % 2 !== 0) { eta_s = eta_s.add(term); } 
+                         else { eta_s = eta_s.sub(term); }
+                    }
+                     const denominator = new Complex(1, 0).sub(Complex.pow(new Complex(2, 0), new Complex(1, 0).sub(s)));
+                     if (denominator.abs() < 1e-9) return new Complex(Infinity, Infinity);
+                     return eta_s.div(denominator);
+                }
+            }
+            
+            initializeVisualizer();
+        });
+    </script>
+</body>
+</html>
