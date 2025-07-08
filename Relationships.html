@@ -17,6 +17,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.2/math.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/numeric/1.2.6/numeric.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>
     
@@ -1448,11 +1449,32 @@
             }
             computeSpectrum(matrix, method = 'eigen') {
                 try {
-                    if (method === 'eigen') { const eigs = this.math.eigs(matrix); return eigs.values.filter(v => !this.math.isComplex(v)).sort((a, b) => b - a); }
-                    const signal = matrix[0]; 
-                    if (method === 'fft') { const result = this.math.fft(signal); return result.map(c => this.math.abs(c)).slice(0, Math.floor(result.length / 2)); }
-                    if (method === 'laplace') { return signal.map((val, i) => val * Math.exp(-i / (signal.length * 0.5))).sort((a,b) => b-a); }
-                } catch (error) { console.error("Computation failed:", error); return Array(matrix.length).fill(0); }
+                    if (method === 'eigen') {
+                        if (typeof numeric !== 'undefined' && numeric.eig) {
+                            const eigs = numeric.eig(matrix);
+                            const re = eigs.lambda.x;
+                            const im = eigs.lambda.y || [];
+                            const values = re.map((val, i) =>
+                                Math.abs(im[i] || 0) > 1e-10 ? NaN : val
+                            );
+                            return values.filter(v => !isNaN(v)).sort((a, b) => b - a);
+                        } else if (this.math.eigs) {
+                            const eigs = this.math.eigs(matrix);
+                            return eigs.values.filter(v => !this.math.isComplex(v)).sort((a, b) => b - a);
+                        }
+                    }
+                    const signal = matrix[0];
+                    if (method === 'fft') {
+                        const result = this.math.fft(signal);
+                        return result.map(c => this.math.abs(c)).slice(0, Math.floor(result.length / 2));
+                    }
+                    if (method === 'laplace') {
+                        return signal.map((val, i) => val * Math.exp(-i / (signal.length * 0.5))).sort((a, b) => b - a);
+                    }
+                } catch (error) {
+                    console.error("Computation failed:", error);
+                    return Array(matrix.length).fill(0);
+                }
             }
             calculateMetrics(matrix, spectrum) {
                 if (!spectrum || spectrum.length === 0) { return { spectralRadius: 0, connectivityIndex: 0, spectralGap: 0 }; }
