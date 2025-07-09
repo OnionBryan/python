@@ -1,5 +1,6 @@
 import json
 import numpy as np
+from numpy.typing import ArrayLike
 from matplotlib import colormaps, cm
 
 
@@ -13,6 +14,32 @@ def validate_colormap(name: str) -> str:
         'electric': 'plasma',
     }
     return aliases.get(name, 'plasma')
+
+
+def apply_matrix_transform(matrix: ArrayLike, vectors: ArrayLike) -> np.ndarray:
+    """Multiply a matrix by one or more vectors using numpy."""
+    m = np.asarray(matrix, dtype=float)
+    v = np.asarray(vectors, dtype=float)
+    if v.ndim == 1:
+        return m @ v
+    return v @ m.T
+
+
+def prepare_point_matrix(points: ArrayLike) -> np.ndarray:
+    """Normalize 2D point data and return an Nx3 vertex matrix."""
+    arr = np.asarray(points, dtype=float)
+    if arr.size == 0:
+        return np.zeros((1, 3))
+    if arr.ndim != 2 or arr.shape[1] < 2:
+        raise ValueError("points must be Nx2 or NxM array")
+
+    mins = arr[:, :2].min(axis=0)
+    maxs = arr[:, :2].max(axis=0)
+    ranges = np.where(maxs - mins == 0, 1.0, maxs - mins)
+    norm = (arr[:, :2] - mins) / ranges - 0.5
+    scaled = norm @ np.array([[4.0, 0.0], [0.0, 4.0]])
+    zeros = np.zeros((scaled.shape[0], 1))
+    return np.hstack((scaled, zeros))
 
 
 HTML_TEMPLATE = """<!DOCTYPE html>
@@ -79,13 +106,16 @@ window.addEventListener('load',init);
 """
 
 
-def generate_html(points, theme_colors, colormap='plasma'):
+def generate_html(points: ArrayLike, theme_colors: dict, colormap: str = 'plasma') -> str:
+    """Return an HTML string visualizing the points with Three.js."""
+    vertices = prepare_point_matrix(points)
     cmap = cm.get_cmap(validate_colormap(colormap))
-    n = len(points)
+    n = len(vertices)
     t = np.linspace(0, 1, n)
     color_vals = cmap(t)[:, :3]
+
     data = HTML_TEMPLATE.format(
-        points=json.dumps(points),
+        points=json.dumps(vertices.tolist()),
         colors=json.dumps(color_vals.tolist()),
         bg=theme_colors.get('background', '#000'),
         primary=theme_colors.get('primary', '#ff6b6b'),
@@ -94,4 +124,9 @@ def generate_html(points, theme_colors, colormap='plasma'):
     return data
 
 
-__all__ = ["validate_colormap", "generate_html"]
+__all__ = [
+    "validate_colormap",
+    "apply_matrix_transform",
+    "prepare_point_matrix",
+    "generate_html",
+]
