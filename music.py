@@ -164,22 +164,25 @@ def generate_melody(frequencies, duration, samplerate, volume):
     Returns:
         np.array: The generated melody audio.
     """
-    melody = np.array([])
+    pieces = []
     t_note = 0
     while t_note < duration:
         # Randomly choose note duration
         note_duration = np.random.choice([0.5, 1, 1.5, 2], p=[0.4, 0.3, 0.2, 0.1])
         # Ensure note doesn't exceed total duration
-        if t_note + note_duration > duration: note_duration = duration - t_note
+        if t_note + note_duration > duration:
+            note_duration = duration - t_note
         # Randomly choose a note frequency
         note_freq = np.random.choice(list(frequencies.values()))
         # Randomly choose an instrument for the note
         instrument = np.random.choice(['piano', 'guitar', 'sine'], p=[0.6, 0.3, 0.1])
         # Generate the wave for the current note
-        melody_piece = generate_instrument_wave(note_freq, note_duration, samplerate, volume, instrument)
-        melody = np.concatenate((melody, melody_piece)) # Add to the overall melody
-        t_note += note_duration # Advance time
-    return melody
+        melody_piece = generate_instrument_wave(
+            note_freq, note_duration, samplerate, volume, instrument
+        )
+        pieces.append(melody_piece)
+        t_note += note_duration  # Advance time
+    return np.concatenate(pieces) if pieces else np.array([], dtype=float)
 
 def generate_bassline(frequencies, duration, samplerate, volume):
     """
@@ -192,20 +195,21 @@ def generate_bassline(frequencies, duration, samplerate, volume):
     Returns:
         np.array: The generated bassline audio.
     """
-    bassline = np.array([])
+    pieces = []
     t_note = 0
     while t_note < duration:
         # Randomly choose note duration for bass (longer notes)
         note_duration = np.random.choice([1, 2], p=[0.8, 0.2])
         # Ensure note doesn't exceed total duration
-        if t_note + note_duration > duration: note_duration = duration - t_note
+        if t_note + note_duration > duration:
+            note_duration = duration - t_note
         # Randomly choose a bass note frequency
         note_freq = np.random.choice(list(frequencies.values()))
         # Generate a sine wave for the bass note
         bass_piece = generate_sine_wave(note_freq, note_duration, samplerate, volume)
-        bassline = np.concatenate((bassline, bass_piece)) # Add to the overall bassline
-        t_note += note_duration # Advance time
-    return bassline
+        pieces.append(bass_piece)
+        t_note += note_duration  # Advance time
+    return np.concatenate(pieces) if pieces else np.array([], dtype=float)
 
 def generate_chord_progression(chord_map, chord_names, duration, samplerate, volume, current_note_frequencies):
     """
@@ -220,28 +224,33 @@ def generate_chord_progression(chord_map, chord_names, duration, samplerate, vol
     Returns:
         np.array: The generated chord progression audio.
     """
-    progression = np.array([])
+    pieces = []
     t_chord = 0
     while t_chord < duration:
-        for name in chord_names: # Iterate through the defined chord progression
-            if t_chord >= duration: break # Stop if duration is exceeded
+        for name in chord_names:  # Iterate through the defined chord progression
+            if t_chord >= duration:
+                break  # Stop if duration is exceeded
             # Randomly choose chord duration (longer durations for chords)
             chord_duration = np.random.choice([4, 8], p=[0.5, 0.5])
             # Ensure chord doesn't exceed total duration
-            if t_chord + chord_duration > duration: chord_duration = duration - t_chord
+            if t_chord + chord_duration > duration:
+                chord_duration = duration - t_chord
 
-            chord_notes = chord_map.get(name, []) # Get the notes for the current chord
-            chord_wave = np.zeros(int(samplerate * chord_duration)) # Initialize chord wave
+            chord_notes = chord_map.get(name, [])  # Get the notes for the current chord
+            chord_wave = np.zeros(int(samplerate * chord_duration))  # Initialize chord wave
             for note_name in chord_notes:
-                freq = current_note_frequencies.get(note_name, 0) # Get the transposed frequency
+                freq = current_note_frequencies.get(note_name, 0)  # Get the transposed frequency
                 # Generate instrument wave for each note in the chord (using piano sound)
-                note_wave = generate_instrument_wave(freq, chord_duration, samplerate, volume, 'piano')
+                note_wave = generate_instrument_wave(
+                    freq, chord_duration, samplerate, volume, 'piano'
+                )
                 chord_wave += note_wave
-            if chord_notes: chord_wave /= len(chord_notes) # Normalize chord volume if notes exist
-            progression = np.concatenate((progression, chord_wave)) # Add chord to progression
-            t_chord += chord_duration # Advance time
+            if chord_notes:
+                chord_wave /= len(chord_notes)  # Normalize chord volume if notes exist
+            pieces.append(chord_wave)
+            t_chord += chord_duration  # Advance time
 
-    return progression
+    return np.concatenate(pieces) if pieces else np.array([], dtype=float)
 
 def generate_arpeggio_track(chord_map, chord_names, duration, samplerate, volume, current_note_frequencies, arpeggio_speed=0.25):
     """
@@ -257,38 +266,52 @@ def generate_arpeggio_track(chord_map, chord_names, duration, samplerate, volume
     Returns:
         np.array: The generated arpeggio audio.
     """
-    arpeggio_track = np.array([])
+    pieces = []
     t_arpeggio = 0
     while t_arpeggio < duration:
         for name in chord_names:
-            if t_arpeggio >= duration: break
-            chord_duration = np.random.choice([4, 8], p=[0.5, 0.5]) # Match chord duration
-            if t_arpeggio + chord_duration > duration: chord_duration = duration - t_arpeggio
+            if t_arpeggio >= duration:
+                break
+            chord_duration = np.random.choice([4, 8], p=[0.5, 0.5])  # Match chord duration
+            if t_arpeggio + chord_duration > duration:
+                chord_duration = duration - t_arpeggio
 
             chord_notes = chord_map.get(name, [])
-            if not chord_notes: continue
+            if not chord_notes:
+                continue
 
             # Generate arpeggiated notes for the current chord
             current_chord_arpeggio = np.zeros(int(samplerate * chord_duration))
-            notes_in_chord = [current_note_frequencies.get(note_name, 0) for note_name in chord_notes if current_note_frequencies.get(note_name, 0) != 0]
+            notes_in_chord = [
+                current_note_frequencies.get(note_name, 0)
+                for note_name in chord_notes
+                if current_note_frequencies.get(note_name, 0) != 0
+            ]
 
-            if not notes_in_chord: continue
+            if not notes_in_chord:
+                continue
 
             note_idx = 0
             note_start_time = 0
             while note_start_time < chord_duration:
                 note_freq = notes_in_chord[note_idx % len(notes_in_chord)]
-                note_wave = generate_instrument_wave(note_freq, arpeggio_speed, samplerate, volume * 0.8, 'piano')
+                note_wave = generate_instrument_wave(
+                    note_freq,
+                    arpeggio_speed,
+                    samplerate,
+                    volume * 0.8,
+                    'piano',
+                )
 
                 start_sample = int(samplerate * note_start_time)
                 end_sample = min(start_sample + len(note_wave), len(current_chord_arpeggio))
-                current_chord_arpeggio[start_sample:end_sample] += note_wave[:end_sample - start_sample]
+                current_chord_arpeggio[start_sample:end_sample] += note_wave[: end_sample - start_sample]
 
                 note_start_time += arpeggio_speed
                 note_idx += 1
-            arpeggio_track = np.concatenate((arpeggio_track, current_chord_arpeggio))
+            pieces.append(current_chord_arpeggio)
             t_arpeggio += chord_duration
-    return arpeggio_track
+    return np.concatenate(pieces) if pieces else np.array([], dtype=float)
 
 def generate_pad_layer(chord_map, chord_names, duration, samplerate, volume, current_note_frequencies):
     """
@@ -303,14 +326,16 @@ def generate_pad_layer(chord_map, chord_names, duration, samplerate, volume, cur
     Returns:
         np.array: The generated pad layer audio.
     """
-    pad_track = np.array([])
+    pieces = []
     t_pad = 0
     while t_pad < duration:
         for name in chord_names:
-            if t_pad >= duration: break
+            if t_pad >= duration:
+                break
             # Use the same random chord duration as the main chord progression
             chord_duration = np.random.choice([4, 8], p=[0.5, 0.5])
-            if t_pad + chord_duration > duration: chord_duration = duration - t_pad
+            if t_pad + chord_duration > duration:
+                chord_duration = duration - t_pad
 
             chord_notes = chord_map.get(name, [])
             if not chord_notes: continue
@@ -360,10 +385,11 @@ def generate_pad_layer(chord_map, chord_names, duration, samplerate, volume, cur
 
                 current_chord_pad += note_wave
 
-            if chord_notes: current_chord_pad /= len(chord_notes) # Normalize
-            pad_track = np.concatenate((pad_track, current_chord_pad))
+            if chord_notes:
+                current_chord_pad /= len(chord_notes)  # Normalize
+            pieces.append(current_chord_pad)
             t_pad += chord_duration
-    return pad_track
+    return np.concatenate(pieces) if pieces else np.array([], dtype=float)
 
 
 def generate_drum_beat(duration, samplerate, volume, base_bpm, bass_frequencies_dict):
@@ -455,7 +481,7 @@ def generate_vinyl_noise(duration, samplerate, volume):
 
 
 # --- Main Execution ---
-try:
+def main():
     # 1. Select a random key and transpose note frequencies
     KEY = random.choice(list(key_to_transposition_factor.keys()))
     transposition_factor = key_to_transposition_factor[KEY]
@@ -538,8 +564,11 @@ try:
 
     print(f"\nSuccessfully generated lofi music file: {output_file}")
 
-except Exception as e:
-    print("\n--- SCRIPT FAILED ---")
-    print(f"An error occurred: {e}")
-    import traceback
-    traceback.print_exc() # Print full traceback for debugging
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        print("\n--- SCRIPT FAILED ---")
+        print(f"An error occurred: {e}")
+        import traceback
+        traceback.print_exc()  # Print full traceback for debugging
