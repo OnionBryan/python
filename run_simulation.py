@@ -17,8 +17,9 @@ def main():
     print("\nInitializing simulation...")
     sim = NetworkSimulation(device_to_use=device).init()
 
-    xor_loss = sim.run_xor_training(3000)
-    print(f"XOR loss after training: {xor_loss:.4f}  (acc {sim.xor_accuracy()*100:.1f}%)")
+    if hasattr(sim, "run_xor_training"):
+        xor_loss = sim.run_xor_training(3000)
+        print(f"XOR loss after training: {xor_loss:.4f}  (acc {sim.xor_accuracy()*100:.1f}%)")
 
     # Configure simulation parameters
     sim.params['competition'] = 0.15
@@ -75,9 +76,10 @@ def main():
     most_connected = max(sim.nodes, key=lambda n: n.connectivity)
     print(f"  Most connected node: {most_connected.name} ({most_connected.connectivity:.2f})")
 
-    print("\nHilbert coordinates (first 5 nodes):")
-    for idx, coord in enumerate(sim.hilbert_positions()[:5]):
-        print(f"  Node {idx}: {coord}")
+    if hasattr(sim, "hilbert_positions"):
+        print("\nHilbert coordinates (first 5 nodes):")
+        for idx, coord in enumerate(sim.hilbert_positions()[:5]):
+            print(f"  Node {idx}: {coord}")
 
     # Visualize the network
     print("\nVisualizing network...")

@@ -1211,13 +1211,9 @@
             return composite;
         }
         function multiplyMatrixAndVector(matrix, vector) {
-            const result = new Array(6).fill(0);
-            for (let i = 0; i < 6; i++) {
-                for (let j = 0; j < 6; j++) {
-                    result[i] += matrix[i][j] * vector[j];
-                }
-            }
-            return result;
+            // Use math.js for reliable matrix multiplication
+            // Convert to matrices in case plain arrays are provided
+            return math.multiply(matrix, vector).toArray();
         }
 
        // Replace the existing HilbertSpaceAnalyzer class with this enhanced version
