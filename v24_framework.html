@@ -27,6 +27,15 @@ body{margin:0;background:#0a0a0a;color:#e2e8f0;font-family:sans-serif;}
 <div id="ml-results"></div>
 </div>
 <script>
+// Ensure TensorFlow is ready and configured
+const tfReady = (async () => {
+  if (typeof tf !== 'undefined') {
+    await tf.setBackend('webgl');
+    await tf.ready();
+    console.log('TensorFlow.js backend:', tf.getBackend());
+  }
+})();
+
 let xorModel;
 async function trainXORNetwork(){
   const xs=tf.tensor2d([[0,0],[0,1],[1,0],[1,1]]);
@@ -40,9 +49,16 @@ async function trainXORNetwork(){
   preds.array().then(a=>{document.getElementById("ml-results").textContent="XOR trained: "+JSON.stringify(a);});
 }
 function runRegression(){
-  const features=[[0,1],[1,2],[2,3]];const labels=[0,1,2];
-  const regression=new ML.MultivariateLinearRegression(features,labels);
-  document.getElementById('ml-results').textContent='Regression ready';
+  tfReady.then(async () => {
+    const xs=tf.tensor2d([[0,1],[1,2],[2,3]]);
+    const ys=tf.tensor2d([[0],[1],[2]]);
+    const model=tf.sequential();
+    model.add(tf.layers.dense({units:1,inputShape:[2]}));
+    model.compile({optimizer:tf.train.sgd(0.1),loss:'meanSquaredError'});
+    await model.fit(xs,ys,{epochs:50});
+    const preds=Array.from((await model.predict(xs).data()));
+    document.getElementById('ml-results').textContent='Regression: '+preds.map(v=>v.toFixed(2)).join(', ');
+  });
 }
 function runBayesian(){
   const nb=new ML.NaiveBayes({modelType:'Gaussian'});
