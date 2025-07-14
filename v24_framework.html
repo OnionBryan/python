@@ -5,11 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>V24 Complete PESTLE-Maxwell AI Framework - Fixed</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
 <script>
 (async()=>{await tf.setBackend("webgl");await tf.ready();console.log("TensorFlow.js backend:",tf.getBackend());})();
 </script>
-<script src="https://www.lactame.com/lib/ml/6.0.0/ml.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ml@6.1.0/dist/ml.min.js"></script>
+<script src="https://unpkg.com/brain.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.2/math.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/numeric/1.2.6/numeric.min.js"></script>
 <style>
@@ -25,6 +26,7 @@ body{margin:0;background:#0a0a0a;color:#e2e8f0;font-family:sans-serif;}
 <button onclick="runBayesian()">Bayesian</button>
 <button onclick="runDecisionTree()">Decision Tree</button>
 <div id="ml-results"></div>
+<div id="xor-status">Accuracy: <span id="xor-accuracy">0%</span>, Epoch: <span id="xor-epoch">0</span>, Loss: <span id="xor-loss">0.000</span></div>
 </div>
 <script>
 // Ensure TensorFlow is ready and configured
@@ -36,17 +38,56 @@ const tfReady = (async () => {
   }
 })();
 
+function addDataFeedEntry(msg, level = 'info') {
+  const feed = document.getElementById('ml-results');
+  const div = document.createElement('div');
+  div.textContent = msg;
+  div.className = `feed-${level}`;
+  feed.appendChild(div);
+}
+
 let xorModel;
-async function trainXORNetwork(){
-  const xs=tf.tensor2d([[0,0],[0,1],[1,0],[1,1]]);
-  const ys=tf.tensor2d([[0],[1],[1],[0]]);
-  xorModel=tf.sequential();
-  xorModel.add(tf.layers.dense({units:3,activation:"tanh",inputShape:[2]}));
-  xorModel.add(tf.layers.dense({units:1,activation:"sigmoid"}));
-  xorModel.compile({optimizer:tf.train.adam(0.1),loss:"binaryCrossentropy"});
-  await xorModel.fit(xs,ys,{epochs:200,shuffle:true});
-  const preds=xorModel.predict(xs).round();
-  preds.array().then(a=>{document.getElementById("ml-results").textContent="XOR trained: "+JSON.stringify(a);});
+function trainXORNetwork() {
+  addDataFeedEntry('Training XOR Neural Network (brain.js)...', 'info');
+  const xorData = [
+    { input: [0, 0], output: [0] },
+    { input: [0, 1], output: [1] },
+    { input: [1, 0], output: [1] },
+    { input: [1, 1], output: [0] }
+  ];
+
+  xorModel = new brain.NeuralNetwork({
+    hiddenLayers: [3],
+    activation: 'sigmoid'
+  });
+
+  let currentEpoch = 0;
+  const totalEpochs = 2000;
+  const step = 200;
+
+  const trainStep = () => {
+    xorModel.train(xorData, { iterations: step, learningRate: 0.5, momentum: 0.9 });
+    currentEpoch += step;
+    let correct = 0, loss = 0;
+    xorData.forEach(d => {
+      const pred = xorModel.run(d.input)[0];
+      loss += Math.pow(pred - d.output[0], 2);
+      if (Math.round(pred) === d.output[0]) correct++;
+    });
+    loss /= xorData.length;
+    const accuracy = correct / xorData.length;
+
+    document.getElementById('xor-accuracy').textContent = (accuracy * 100).toFixed(0) + '%';
+    document.getElementById('xor-epoch').textContent = currentEpoch;
+    document.getElementById('xor-loss').textContent = loss.toFixed(3);
+
+    if (currentEpoch < totalEpochs) {
+      requestAnimationFrame(trainStep);
+    } else {
+      addDataFeedEntry(`XOR training complete. Accuracy: ${(accuracy * 100).toFixed(0)}%`, 'success');
+    }
+  };
+  trainStep();
 }
 function runRegression(){
   tfReady.then(async () => {
