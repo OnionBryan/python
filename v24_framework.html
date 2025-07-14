@@ -6,6 +6,9 @@
 <title>V24 Complete PESTLE-Maxwell AI Framework - Fixed</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
+<script>
+(async()=>{await tf.setBackend("webgl");await tf.ready();console.log("TensorFlow.js backend:",tf.getBackend());})();
+</script>
 <script src="https://www.lactame.com/lib/ml/6.0.0/ml.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.2/math.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/numeric/1.2.6/numeric.min.js"></script>
@@ -25,10 +28,16 @@ body{margin:0;background:#0a0a0a;color:#e2e8f0;font-family:sans-serif;}
 </div>
 <script>
 let xorModel;
-function trainXORNetwork(){
-  const data=[{input:[0,0],output:[0]},{input:[0,1],output:[1]},{input:[1,0],output:[1]},{input:[1,1],output:[0]}];
-  xorModel=new ML.NeuralNetwork({layers:[2,3,1],activation:'tanh',learningRate:0.5});
-  xorModel.train(data,{epochs:1000});
+async function trainXORNetwork(){
+  const xs=tf.tensor2d([[0,0],[0,1],[1,0],[1,1]]);
+  const ys=tf.tensor2d([[0],[1],[1],[0]]);
+  xorModel=tf.sequential();
+  xorModel.add(tf.layers.dense({units:3,activation:"tanh",inputShape:[2]}));
+  xorModel.add(tf.layers.dense({units:1,activation:"sigmoid"}));
+  xorModel.compile({optimizer:tf.train.adam(0.1),loss:"binaryCrossentropy"});
+  await xorModel.fit(xs,ys,{epochs:200,shuffle:true});
+  const preds=xorModel.predict(xs).round();
+  preds.array().then(a=>{document.getElementById("ml-results").textContent="XOR trained: "+JSON.stringify(a);});
 }
 function runRegression(){
   const features=[[0,1],[1,2],[2,3]];const labels=[0,1,2];
