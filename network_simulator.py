@@ -17,6 +17,72 @@ class Node:
     connectivity: float = 0.0
 
 
+class HilbertCurve:
+    """Simple 2D Hilbert curve encoder/decoder."""
+
+    def __init__(self, order: int = 3) -> None:
+        self.order = order
+        self.size = 1 << order
+
+    def index_to_coord(self, index: int) -> Tuple[int, int]:
+        x = y = 0
+        n = 1
+        for s in range(self.order):
+            rx = 1 & (index >> 1)
+            ry = 1 & (index ^ rx)
+            if ry == 0:
+                if rx == 1:
+                    x, y = self.size - 1 - x, self.size - 1 - y
+                x, y = y, x
+            x += n * rx
+            y += n * ry
+            index >>= 2
+            n <<= 1
+        return x, y
+
+
+class MatrixXORNet:
+    """Tiny XOR neural network using matrix ops."""
+
+    def __init__(self, lr: float = 0.1, device: torch.device | str = "cpu") -> None:
+        device = torch.device(device)
+        self.W1 = torch.randn(2, 2, device=device)
+        self.b1 = torch.zeros(2, device=device)
+        self.W2 = torch.randn(2, 1, device=device)
+        self.b2 = torch.zeros(1, device=device)
+        self.lr = lr
+        self.device = device
+
+    def _forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        h = torch.sigmoid(x @ self.W1 + self.b1)
+        o = torch.sigmoid(h @ self.W2 + self.b2)
+        return o, h
+
+    def train(self, epochs: int = 2000) -> float:
+        x = torch.tensor([[0., 0.], [0., 1.], [1., 0.], [1., 1.]], device=self.device)
+        y = torch.tensor([[0.], [1.], [1.], [0.]], device=self.device)
+        for _ in range(epochs):
+            o, h = self._forward(x)
+            grad_o = 2 * (o - y) * o * (1 - o)
+            grad_W2 = h.t() @ grad_o
+            grad_b2 = grad_o.sum(0)
+            grad_h = grad_o @ self.W2.t()
+            grad_W1 = x.t() @ (grad_h * h * (1 - h))
+            grad_b1 = (grad_h * h * (1 - h)).sum(0)
+            self.W2 -= self.lr * grad_W2
+            self.b2 -= self.lr * grad_b2
+            self.W1 -= self.lr * grad_W1
+            self.b1 -= self.lr * grad_b1
+        loss = ((self._forward(x)[0] - y) ** 2).mean()
+        return loss.item()
+
+    def accuracy(self) -> float:
+        x = torch.tensor([[0., 0.], [0., 1.], [1., 0.], [1., 1.]], device=self.device)
+        y = torch.tensor([[0.], [1.], [1.], [0.]], device=self.device)
+        pred = (self._forward(x)[0] > 0.5).float()
+        return (pred == y).float().mean().item()
+
+
 class NetworkSimulation:
     """A very small network simulation using PyTorch tensors."""
 
@@ -33,6 +99,8 @@ class NetworkSimulation:
         self.connections: Dict[Tuple[int, int], Dict[str, float]] = {}
         self.interaction_matrix = torch.zeros(feature_dim, feature_dim, device=self.device)
         self.components: List[Iterable[int]] = []
+        self.hilbert = HilbertCurve()
+        self.xor_net = MatrixXORNet(device=self.device)
 
     # ------------------------------------------------------------------
     def init(self) -> "NetworkSimulation":
@@ -151,4 +219,17 @@ class NetworkSimulation:
         plt.title("Feature Space")
         plt.tight_layout()
         plt.show()
+
+    # ------------------------------------------------------------------
+    def hilbert_positions(self) -> List[Tuple[int, int]]:
+        """Return Hilbert coordinates for each node index."""
+        return [self.hilbert.index_to_coord(i) for i in range(self.num_nodes)]
+
+    # ------------------------------------------------------------------
+    def run_xor_training(self, epochs: int = 2000) -> float:
+        """Train XOR network and return final loss."""
+        return self.xor_net.train(epochs)
+
+    def xor_accuracy(self) -> float:
+        return self.xor_net.accuracy()
 
