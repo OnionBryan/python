@@ -419,9 +419,9 @@ def generate_drum_beat(duration, samplerate, volume, base_bpm, bass_frequencies_
     kick_freqs = np.random.choice(list(bass_frequencies_dict.values()), len(kick_starts))
     kick_waves = volume * 0.8 * np.sin(2 * np.pi * kick_freqs[:, None] * kick_t)
 
-    for start, wave in zip(kick_starts, kick_waves):
-        end = min(start + kick_samples, len(drum_track))
-        drum_track[start:end] += wave[: end - start]
+    kick_indices = kick_starts[:, None] + np.arange(kick_samples)
+    valid_mask = kick_indices < len(drum_track)
+    np.add.at(drum_track, kick_indices[valid_mask], kick_waves[valid_mask])
 
     # --- Snare drum generation ---
     snare_duration = 0.15
@@ -430,9 +430,9 @@ def generate_drum_beat(duration, samplerate, volume, base_bpm, bass_frequencies_
     b = np.array([1, -0.9])
     snare_waves = volume * 0.5 * np.apply_along_axis(lambda x: np.convolve(x, b, mode="full")[: len(x)], 1, snare_noise)
 
-    for start, wave in zip(snare_starts, snare_waves):
-        end = min(start + snare_samples, len(drum_track))
-        drum_track[start:end] += wave[: end - start]
+    snare_indices = snare_starts[:, None] + np.arange(snare_samples)
+    valid_mask = snare_indices < len(drum_track)
+    np.add.at(drum_track, snare_indices[valid_mask], snare_waves[valid_mask])
 
     return drum_track
 
