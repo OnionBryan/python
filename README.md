@@ -14,3 +14,14 @@ A collection of experiments and scripts.
    ```
 
 The script will initialize a small network and display several plots demonstrating its dynamics.
+
+## TensorFlow Setup
+
+The repository includes a small utility to verify that TensorFlow is available.
+Run the script to perform a simple matrix multiplication:
+
+```bash
+python tensorflow_setup.py
+```
+
+The output should be a 2x1 matrix computed by TensorFlow on the CPU.
