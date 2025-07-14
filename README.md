@@ -14,3 +14,12 @@ A collection of experiments and scripts.
    ```
 
 The script will initialize a small network and display several plots demonstrating its dynamics.
+
+## TensorFlow Setup Demo
+
+A small script `tensorflow_setup.py` demonstrates initializing TensorFlow and running a matrix multiplication.
+
+Run it with:
+```bash
+python tensorflow_setup.py
+```
