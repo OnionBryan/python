@@ -2384,5 +2384,6 @@ class HilbertSpaceAnalyzer {
         animate();
 
     </script>
+    <script src="advanced_features.js"></script>
 </body>
 </html>
