@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI Framework Demo</title>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
+<script src="https://www.lactame.com/lib/ml/6.0.0/ml.min.js"></script>
+</head>
+<body>
+<h1>AI Framework Demo</h1>
+<script>
+function trainXORNetwork() {
+  const xorData = [
+    {input: [0,0], output: [0]},
+    {input: [0,1], output: [1]},
+    {input: [1,0], output: [1]},
+    {input: [1,1], output: [0]}
+  ];
+  // Updated constructor
+  xorModel = new ML.NeuralNetwork({ layers: [2,3,1], activation: 'tanh', learningRate: 0.5 });
+  xorModel.train(xorData, { epochs: 1000 });
+}
+
+function runRegression() {
+  const features = [[1,2],[2,3],[3,4]];
+  const labels = [1,2,3];
+  // Updated constructor
+  const regression = new ML.MultivariateLinearRegression(features, labels);
+  document.body.setAttribute('data-regression', regression.predict([[4,5]]));
+}
+
+function runBayesian() {
+  const features = [[1,2],[3,4],[5,6]];
+  const labels = [0,1,0];
+  // Updated constructor
+  const nb = new ML.NaiveBayes({modelType: 'Gaussian'});
+  nb.train(features, labels);
+  document.body.setAttribute('data-bayes', nb.predict([[2,3]]));
+}
+
+function runDecisionTree() {
+  const features = [[1,2],[3,4],[5,6]];
+  const labels = [0,1,0];
+  // Updated constructor
+  const tree = new ML.DecisionTreeClassifier({ gainFunction: 'gini', maxDepth: 4 });
+  tree.train(features, labels);
+  document.body.setAttribute('data-tree', tree.predict([[2,3]]));
+}
+</script>
+</body>
+</html>
