@@ -367,48 +367,46 @@ def generate_pad_layer(chord_map, chord_names, duration, samplerate, volume, cur
 
 
 def generate_drum_beat(duration, samplerate, volume, base_bpm, bass_frequencies_dict):
-    """
-    Generates a simple drum beat with kick and snare sounds, with dynamic tempo.
-    Args:
-        duration (float): Total duration of the drum beat in seconds.
-        samplerate (int): Samples per second.
-        volume (float): Volume of the drum beat.
-        base_bpm (int): The base beats per minute.
-        bass_frequencies_dict (dict): Dictionary of transposed bass note frequencies for the kick.
-    Returns:
-        np.array: The generated drum beat audio.
-    """
+    """Generates a simple drum beat with kick and snare sounds."""
+
     drum_track = np.zeros(int(samplerate * duration))
 
-    # Introduce slight random variation to BPM
-    bpm_variation = random.uniform(-5, 5) # +/- 5 BPM
+    bpm_variation = random.uniform(-5, 5)
     current_bpm = base_bpm + bpm_variation
-    beat_duration = 60 / current_bpm # Duration of one beat in seconds
+    beat_duration = 60 / current_bpm
     samples_per_beat = int(samplerate * beat_duration)
 
-    for i in range(int(duration / beat_duration)):
-        current_sample = i * samples_per_beat
+    num_beats = int(duration / beat_duration)
+    beat_indices = np.arange(num_beats)
 
-        # Kick drum on beat 1 and 3
-        if i % 4 == 0 or i % 4 == 2:
-            kick_duration = 0.2
-            # Use a random frequency from the transposed bass frequencies for the kick drum
-            kick_freq = np.random.choice(list(bass_frequencies_dict.values()))
-            kick_wave = generate_sine_wave(kick_freq, kick_duration, samplerate, volume * 0.8)
-            end_sample = min(current_sample + len(kick_wave), len(drum_track))
-            drum_track[current_sample:end_sample] += kick_wave[:end_sample - current_sample]
+    # Determine which beats are kicks and snares
+    kick_mask = (beat_indices % 4 == 0) | (beat_indices % 4 == 2)
+    snare_mask = ~kick_mask
 
-        # Snare drum on beat 2 and 4
-        if i % 4 == 1 or i % 4 == 3:
-            snare_duration = 0.15
-            # Snare sound can be a short burst of filtered white noise
-            snare_noise = np.random.uniform(-1, 1, int(samplerate * snare_duration))
-            # Apply a high-pass filter to make it sound like a snare
-            # This is a very basic way to simulate, a proper filter would be better
-            b, a = np.array([1, -0.9]), np.array([1]) # Simple high-pass filter coefficients
-            snare_wave = volume * 0.5 * np.convolve(snare_noise, b, mode='full')[:len(snare_noise)]
-            end_sample = min(current_sample + len(snare_wave), len(drum_track))
-            drum_track[current_sample:end_sample] += snare_wave[:end_sample - current_sample]
+    kick_starts = beat_indices[kick_mask] * samples_per_beat
+    snare_starts = beat_indices[snare_mask] * samples_per_beat
+
+    # --- Kick drum generation ---
+    kick_duration = 0.2
+    kick_samples = int(samplerate * kick_duration)
+    kick_t = np.linspace(0, kick_duration, kick_samples, endpoint=False)
+    kick_freqs = np.random.choice(list(bass_frequencies_dict.values()), len(kick_starts))
+    kick_waves = volume * 0.8 * np.sin(2 * np.pi * kick_freqs[:, None] * kick_t)
+
+    for start, wave in zip(kick_starts, kick_waves):
+        end = min(start + kick_samples, len(drum_track))
+        drum_track[start:end] += wave[: end - start]
+
+    # --- Snare drum generation ---
+    snare_duration = 0.15
+    snare_samples = int(samplerate * snare_duration)
+    snare_noise = np.random.uniform(-1, 1, (len(snare_starts), snare_samples))
+    b = np.array([1, -0.9])
+    snare_waves = volume * 0.5 * np.apply_along_axis(lambda x: np.convolve(x, b, mode="full")[: len(x)], 1, snare_noise)
+
+    for start, wave in zip(snare_starts, snare_waves):
+        end = min(start + snare_samples, len(drum_track))
+        drum_track[start:end] += wave[: end - start]
 
     return drum_track
 
@@ -433,23 +431,21 @@ def generate_vinyl_noise(duration, samplerate, volume):
     noise_track += crackle_filtered * volume * 0.1 # Lower volume for background crackle
 
     # Add occasional "pops"
-    num_pops = int(duration / 2) # Approximately one pop every 2 seconds
-    for _ in range(num_pops):
-        pop_pos = random.randint(0, total_samples - 1)
-        pop_duration = random.uniform(0.005, 0.02) # Short duration for pops
-        pop_samples = int(samplerate * pop_duration)
-        pop_amplitude = random.uniform(0.3, 0.7) # Random amplitude for pops
+    num_pops = int(duration / 2)  # Roughly one pop every two seconds
 
-        pop_wave = np.random.uniform(-pop_amplitude, pop_amplitude, pop_samples)
-        # Apply a quick decay to the pop
-        pop_decay = np.linspace(1, 0, pop_samples)
-        pop_wave *= pop_decay
+    pop_positions = np.random.randint(0, total_samples, size=num_pops)
+    pop_durations = np.random.uniform(0.005, 0.02, size=num_pops)
+    pop_samples = (samplerate * pop_durations).astype(int)
+    pop_amplitudes = np.random.uniform(0.3, 0.7, size=num_pops)
 
-        start_idx = max(0, pop_pos - pop_samples // 2)
-        end_idx = min(total_samples, start_idx + pop_samples)
-        # Ensure the pop is added without going out of bounds
-        add_len = min(end_idx - start_idx, len(pop_wave))
-        noise_track[start_idx:start_idx + add_len] += pop_wave[:add_len]
+    for pos, p_len, amp in zip(pop_positions, pop_samples, pop_amplitudes):
+        wave = np.random.uniform(-amp, amp, p_len)
+        wave *= np.linspace(1, 0, p_len)
+
+        start = max(0, pos - p_len // 2)
+        end = min(total_samples, start + p_len)
+        add_len = min(end - start, len(wave))
+        noise_track[start:start + add_len] += wave[:add_len]
 
     return noise_track
 
