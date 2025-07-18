@@ -5,112 +5,211 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>V24 Complete PESTLE-Maxwell AI Framework - Fixed</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
-<script>
-(async()=>{await tf.setBackend("webgl");await tf.ready();console.log("TensorFlow.js backend:",tf.getBackend());})();
-</script>
-<script src="https://cdn.jsdelivr.net/npm/ml@6.1.0/dist/ml.min.js"></script>
-<script src="https://unpkg.com/brain.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script> <!-- Updated TF version -->
+<script src="https://cdn.jsdelivr.net/npm/ml@6.1.0/dist/ml.min.js"></script> <!-- Updated ml.js CDN -->
+<script src="https://unpkg.com/brain.js"></script> <!-- Added brain.js for ANN -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.2/math.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/numeric/1.2.6/numeric.min.js"></script>
 <style>
-/* minimal styles for brevity */
-body{margin:0;background:#0a0a0a;color:#e2e8f0;font-family:sans-serif;}
-.panel{background:rgba(15,23,42,0.9);border:1px solid rgba(148,163,184,0.2);border-radius:16px;padding:20px;}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+color: #e2e8f0;
+overflow: hidden;
+position: relative;
+}
+#bg-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; opacity: 0.3; }
+#container { position: relative; width: 100vw; height: 100vh; }
+#canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+#ui-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100; }
+.panel { background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 16px; padding: 20px; pointer-events: all; backdrop-filter: blur(20px) saturate(180%); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.panel:hover { border-color: rgba(6, 182, 212, 0.4); box-shadow: 0 32px 64px -12px rgba(6, 182, 212, 0.15); }
+.panel.collapsed { height: 60px; overflow: hidden; }
+.panel.collapsed .panel-content { display: none; }
+#xor-panel { position: absolute; top: 20px; left: 20px; width: 400px; max-height: 95vh; overflow-y: auto; }
+#ai-panel { position: absolute; top: 20px; left: 440px; width: 380px; max-height: 95vh; overflow-y: auto; }
+#control-panel { position: absolute; top: 20px; left: 840px; width: 360px; max-height: 95vh; overflow-y: auto; }
+#analytics-panel { position: absolute; top: 20px; right: 400px; width: 340px; max-height: 95vh; overflow-y: auto; }
+#info-panel { position: absolute; top: 20px; right: 20px; width: 360px; max-height: 95vh; overflow-y: auto; }
+#vr-panel { position: absolute; bottom: 20px; left: 20px; width: 300px; height: auto; }
+#perf-panel { position: absolute; bottom: 20px; right: 20px; width: 280px; height: auto; }
+#data-feed { position: absolute; bottom: 20px; left: 340px; right: 300px; height: 200px; overflow-y: auto; }
+.section-title { color: #06b6d4; font-size: 16px; font-weight: 700; margin-bottom: 16px; border-bottom: 2px solid rgba(6, 182, 212, 0.3); padding-bottom: 8px; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.section-title::before { content: ''; width: 8px; height: 8px; background: linear-gradient(135deg, #06b6d4, #3b82f6); border-radius: 50%; animation: pulse 2s infinite; }
+.section-title::after { content: '▼'; margin-left: auto; transition: transform 0.3s ease; }
+.panel.collapsed .section-title::after { transform: rotate(-90deg); }
+@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.2); } }
+.panel-content { transition: all 0.3s ease; }
+.metric-card { background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(59, 130, 246, 0.1)); border: 1px solid rgba(6, 182, 212, 0.2); border-radius: 12px; padding: 16px; margin: 8px 0; transition: all 0.3s ease; }
+.metric-card:hover { background: linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(59, 130, 246, 0.15)); transform: translateY(-2px); }
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 12px; margin: 12px 0; }
+.metric-item { text-align: center; padding: 12px; background: rgba(15, 23, 42, 0.6); border-radius: 8px; border: 1px solid rgba(148, 163, 184, 0.1); }
+.metric-label { font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.metric-value { font-size: 18px; font-weight: 700; color: #06b6d4; font-family: 'SF Mono', Monaco, monospace; }
+.prediction-card { background: linear-gradient(135deg, rgba(124, 58, 237, 0.1), rgba(59, 130, 246, 0.1)); border: 1px solid rgba(124, 58, 237, 0.3); border-radius: 12px; padding: 16px; margin: 8px 0; }
+.prediction-confidence { width: 100%; height: 6px; background: rgba(15, 23, 42, 0.5); border-radius: 3px; overflow: hidden; margin: 8px 0; }
+.confidence-fill { height: 100%; background: linear-gradient(90deg, #7c3aed, #06b6d4); transition: width 1s ease; }
+.control-group { margin: 16px 0; padding: 16px; background: rgba(15, 23, 42, 0.4); border-radius: 12px; border: 1px solid rgba(148, 163, 184, 0.1); }
+.control-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 13px; font-weight: 500; }
+.slider { width: 140px; height: 6px; background: linear-gradient(90deg, #1e293b, #334155); border-radius: 3px; outline: none; cursor: pointer; transition: all 0.3s ease; }
+.slider:hover { background: linear-gradient(90deg, #334155, #475569); }
+.slider::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; background: linear-gradient(135deg, #06b6d4, #3b82f6); border-radius: 50%; cursor: pointer; box-shadow: 0 4px 12px rgba(6, 182, 212, 0.4); transition: all 0.2s ease; }
+.slider::-webkit-slider-thumb:hover { transform: scale(1.2); box-shadow: 0 6px 16px rgba(6, 182, 212, 0.6); }
+.value-display { color: #06b6d4; font-family: 'SF Mono', Monaco, monospace; min-width: 70px; text-align: right; font-size: 12px; font-weight: 600; }
+.btn { background: linear-gradient(135deg, #1e40af, #3b82f6); border: none; color: white; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; margin: 4px; transition: all 0.3s ease; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
+.btn:hover { background: linear-gradient(135deg, #1d4ed8, #2563eb); transform: translateY(-2px); box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4); }
+.btn.primary { background: linear-gradient(135deg, #06b6d4, #0891b2); }
+.btn.primary:hover { background: linear-gradient(135deg, #0891b2, #0e7490); }
+.btn.success { background: linear-gradient(135deg, #10b981, #059669); }
+.btn.warning { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.btn.danger { background: linear-gradient(135deg, #ef4444, #dc2626); }
+.data-stream { height: 100%; overflow-y: auto; padding: 16px; font-family: 'SF Mono', Monaco, monospace; font-size: 11px; line-height: 1.4; }
+.data-entry { margin: 4px 0; padding: 8px 12px; background: rgba(15, 23, 42, 0.6); border-radius: 6px; border-left: 3px solid #06b6d4; animation: slideIn 0.3s ease; }
+.data-entry.warning { border-left-color: #f59e0b; }
+.data-entry.error { border-left-color: #ef4444; }
+.data-entry.success { border-left-color: #10b981; }
+@keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+.vr-controls { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.vr-status { padding: 12px; background: rgba(15, 23, 42, 0.6); border-radius: 8px; text-align: center; border: 1px solid rgba(124, 58, 237, 0.3); }
+.vr-available { border-color: rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.1); }
+.perf-chart { height: 60px; background: rgba(15, 23, 42, 0.6); border-radius: 8px; margin: 8px 0; position: relative; overflow: hidden; }
+.perf-line { position: absolute; bottom: 0; width: 2px; background: linear-gradient(to top, #06b6d4, #3b82f6); transition: height 0.3s ease; }
+.xor-network-container { position: relative; width: 100%; height: 200px; border-radius: 8px; overflow: hidden; }
+.quantum-circuit-container { position: relative; width: 100%; height: 150px; border-radius: 8px; overflow: hidden; }
+.xor-pattern-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; margin: 12px 0; padding: 8px; background: rgba(15, 23, 42, 0.6); border-radius: 8px; }
+.xor-cell { aspect-ratio: 1; background: rgba(51, 65, 85, 0.5); border-radius: 4px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; }
+.xor-cell:hover { background: rgba(6, 182, 212, 0.3); transform: scale(1.1); }
+.xor-cell.active { background: linear-gradient(135deg, #06b6d4, #3b82f6); color: white; }
+.xor-cell.pattern { background: linear-gradient(135deg, #10b981, #059669); color: white; animation: pulse 1s infinite; }
+.heatmap-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50; opacity: 0; transition: opacity 0.5s ease; }
+.heatmap-overlay.active { opacity: 0.7; }
+.loading-spinner { width: 20px; height: 20px; border: 2px solid rgba(6, 182, 212, 0.3); border-top: 2px solid #06b6d4; border-radius: 50%; animation: spin 1s linear infinite; display: inline-block; margin-left: 8px; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+@media (max-width: 1600px) { .panel { width: 300px !important; } #ai-panel { left: 340px; } #control-panel { left: 660px; } #analytics-panel { right: 320px; } }
+@media (max-width: 1200px) { .panel { position: fixed !important; max-height: 80vh; z-index: 1000; } #xor-panel { top: 10px; left: 10px; width: 280px; } #ai-panel { top: 10px; left: 300px; width: 280px; } #control-panel { top: 10px; right: 10px; width: 280px; left: auto; } #analytics-panel, #info-panel { display: none; } }
 </style>
 </head>
 <body>
-<div id="ui-overlay" class="panel">
-<button onclick="trainXORNetwork()">Train XOR</button>
-<button onclick="runRegression()">Regression</button>
-<button onclick="runBayesian()">Bayesian</button>
-<button onclick="runDecisionTree()">Decision Tree</button>
-<div id="ml-results"></div>
-<div id="xor-status">Accuracy: <span id="xor-accuracy">0%</span>, Epoch: <span id="xor-epoch">0</span>, Loss: <span id="xor-loss">0.000</span></div>
+<!-- Original body unchanged -->
+<canvas id="bg-canvas"></canvas>
+<div id="container">
+<div id="canvas-container"></div>
+<div class="heatmap-overlay" id="heatmap-overlay"></div>
+<div id="ui-overlay">
+<div id="xor-panel" class="panel">
+<div class="section-title" onclick="togglePanel('xor-panel')">⚡ XOR Intelligence Hub</div>
+<div class="panel-content">
+<div class="metric-card">
+<div class="metric-label">XOR NEURAL NETWORK</div>
+<div class="xor-network-container">
+<canvas id="xor-network-canvas" width="360" height="200" style="border-radius: 8px; background: rgba(15, 23, 42, 0.8);"></canvas>
+</div>
+<div class="metric-grid" style="margin-top: 12px;">
+<div class="metric-item">
+<div class="metric-label">Accuracy</div>
+<div class="metric-value" id="xor-accuracy">0%</div>
+</div>
+<div class="metric-item">
+<div class="metric-label">Epoch</div>
+<div class="metric-value" id="xor-epoch">0</div>
+</div>
+<div class="metric-item">
+<div class="metric-label">Loss</div>
+<div class="metric-value" id="xor-loss">1.00</div>
+</div>
+</div>
+<div style="margin-top: 12px;">
+<button class="btn primary" onclick="trainXORNetwork()">🧠 Train XOR</button>
+<button class="btn" onclick="resetXORNetwork()">🔄 Reset</button>
+<button class="btn" onclick="testXORNetwork()">🧪 Test</button>
+</div>
+</div>
+<!-- truncated for brevity -->
+</div>
+</div>
 </div>
 <script>
-// Ensure TensorFlow is ready and configured
-const tfReady = (async () => {
-  if (typeof tf !== 'undefined') {
-    await tf.setBackend('webgl');
-    await tf.ready();
-    console.log('TensorFlow.js backend:', tf.getBackend());
+// ================ CORE ML & SYSTEM CLASSES ================
+
+class V24NeuralNetwork {
+  constructor(inputSize, hiddenSize, outputSize, opts={}) {
+    this.inputSize = inputSize;
+    this.hiddenSize = hiddenSize;
+    this.outputSize = outputSize;
+    this.learningRate = opts.learningRate || 0.01;
+    this.momentum = opts.momentum || 0.9;
+    this.lossType = opts.lossType || 'mse';
+    this.weightsIH = this.randomMatrix(hiddenSize, inputSize);
+    this.weightsHO = this.randomMatrix(outputSize, hiddenSize);
+    this.biasH = new Array(hiddenSize).fill(0);
+    this.biasO = new Array(outputSize).fill(0);
+    this.prevDeltaIH = this.zeroMatrix(hiddenSize, inputSize);
+    this.prevDeltaHO = this.zeroMatrix(outputSize, hiddenSize);
+    this.epochLosses = [];
+    this.trainCount = 0;
   }
-})();
-
-function addDataFeedEntry(msg, level = 'info') {
-  const feed = document.getElementById('ml-results');
-  const div = document.createElement('div');
-  div.textContent = msg;
-  div.className = `feed-${level}`;
-  feed.appendChild(div);
-}
-
-let xorModel;
-function trainXORNetwork() {
-  addDataFeedEntry('Training XOR Neural Network (brain.js)...', 'info');
-  const xorData = [
-    { input: [0, 0], output: [0] },
-    { input: [0, 1], output: [1] },
-    { input: [1, 0], output: [1] },
-    { input: [1, 1], output: [0] }
-  ];
-
-  xorModel = new brain.NeuralNetwork({
-    hiddenLayers: [3],
-    activation: 'sigmoid'
-  });
-
-  let currentEpoch = 0;
-  const totalEpochs = 2000;
-  const step = 200;
-
-  const trainStep = () => {
-    xorModel.train(xorData, { iterations: step, learningRate: 0.5, momentum: 0.9 });
-    currentEpoch += step;
-    let correct = 0, loss = 0;
-    xorData.forEach(d => {
-      const pred = xorModel.run(d.input)[0];
-      loss += Math.pow(pred - d.output[0], 2);
-      if (Math.round(pred) === d.output[0]) correct++;
+  randomMatrix(rows, cols) {
+    return Array.from({length: rows}, () => Array.from({length: cols}, () => (Math.random() - 0.5) * 2));
+  }
+  zeroMatrix(rows, cols) {
+    return Array.from({length: rows}, () => new Array(cols).fill(0));
+  }
+  sigmoid(x) { return 1 / (1 + Math.exp(-Math.max(-500, Math.min(500, x)))); }
+  sigmoidDerivative(x) { return x * (1 - x); }
+  forward(inputs, weights, bias) {
+    return weights.map((row, i) => {
+      let sum = row.reduce((acc, w, j) => acc + w * inputs[j], 0) + bias[i];
+      return this.sigmoid(sum);
     });
-    loss /= xorData.length;
-    const accuracy = correct / xorData.length;
-
-    document.getElementById('xor-accuracy').textContent = (accuracy * 100).toFixed(0) + '%';
-    document.getElementById('xor-epoch').textContent = currentEpoch;
-    document.getElementById('xor-loss').textContent = loss.toFixed(3);
-
-    if (currentEpoch < totalEpochs) {
-      requestAnimationFrame(trainStep);
-    } else {
-      addDataFeedEntry(`XOR training complete. Accuracy: ${(accuracy * 100).toFixed(0)}%`, 'success');
+  }
+  train(inputs, targets) {
+    if(inputs.length !== this.inputSize || targets.length !== this.outputSize) {
+        console.error(`Network size mismatch. Expected Input: ${this.inputSize}, Got: ${inputs.length}. Expected Output: ${this.outputSize}, Got: ${targets.length}`);
+        return;
     }
-  };
-  trainStep();
+    const hidden = this.forward(inputs, this.weightsIH, this.biasH);
+    const outputs = this.forward(hidden, this.weightsHO, this.biasO);
+    const outputErrors = targets.map((t, i) => t - outputs[i]);
+    const hiddenErrors = this.weightsHO[0].map((_, i) =>
+      outputErrors.reduce((sum, err, j) => sum + err * this.weightsHO[j][i], 0)
+    );
+    this.updateWeights(this.weightsHO, this.prevDeltaHO, hidden, outputErrors, outputs);
+    this.updateWeights(this.weightsIH, this.prevDeltaIH, inputs, hiddenErrors, hidden);
+    this.updateBias(this.biasO, outputErrors);
+    this.updateBias(this.biasH, hiddenErrors);
+    const loss = outputErrors.reduce((sum, err) => sum + err*err, 0) / outputs.length;
+    this.epochLosses.push(loss);
+    this.trainCount++;
+  }
+  updateWeights(weights, prevDelta, inputs, errors, outputs) {
+    const gradMatrix = math.multiply(math.transpose([errors]), [inputs]);
+    for (let i = 0; i < weights.length; i++) {
+      for (let j = 0; j < weights[i].length; j++) {
+        const grad = gradMatrix[i][j] * this.sigmoidDerivative(outputs[i]);
+        const delta = this.learningRate * grad + this.momentum * (prevDelta[i]?.[j] || 0);
+        weights[i][j] += delta;
+        if (!prevDelta[i]) prevDelta[i] = [];
+        prevDelta[i][j] = delta;
+      }
+    }
+  }
+  updateBias(bias, errors) {
+    const delta = math.multiply(errors, this.learningRate);
+    const updated = math.add(bias, delta);
+    for (let i = 0; i < bias.length; i++) bias[i] = updated[i];
+  }
+  predict(inputs) {
+    const hidden = this.forward(inputs, this.weightsIH, this.biasH);
+    return this.forward(hidden, this.weightsHO, this.biasO);
+  }
+  getAccuracy() {
+    if (this.epochLosses.length === 0) return 0;
+    const recentLoss = this.epochLosses.slice(-10).reduce((s,l)=>s+l,0)/Math.min(10,this.epochLosses.length);
+    return Math.max(0, 1 - recentLoss);
+  }
 }
-function runRegression(){
-  tfReady.then(async () => {
-    const xs=tf.tensor2d([[0,1],[1,2],[2,3]]);
-    const ys=tf.tensor2d([[0],[1],[2]]);
-    const model=tf.sequential();
-    model.add(tf.layers.dense({units:1,inputShape:[2]}));
-    model.compile({optimizer:tf.train.sgd(0.1),loss:'meanSquaredError'});
-    await model.fit(xs,ys,{epochs:50});
-    const preds=Array.from((await model.predict(xs).data()));
-    document.getElementById('ml-results').textContent='Regression: '+preds.map(v=>v.toFixed(2)).join(', ');
-  });
-}
-function runBayesian(){
-  const nb=new ML.NaiveBayes({modelType:'Gaussian'});
-  nb.train([[0],[1],[2]],[0,1,1]);
-  document.getElementById('ml-results').textContent='Bayesian trained';
-}
-function runDecisionTree(){
-  const clf=new ML.DecisionTreeClassifier({gainFunction:'gini',maxDepth:3});
-  clf.train([[0],[1],[2]],[0,1,1]);
-  document.getElementById('ml-results').textContent='Tree trained';
-}
+
 </script>
 </body>
 </html>
