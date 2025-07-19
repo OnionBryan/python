@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Demo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
+<script src="https://www.lactame.com/lib/ml/6.0.0/ml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.2/math.min.js"></script>
+<style>
+body{margin:0;background:#0a0a0a;color:#e2e8f0;font-family:sans-serif;}
+.panel{background:rgba(15,23,42,0.9);border:1px solid rgba(148,163,184,0.2);border-radius:16px;padding:20px;}
+</style>
+</head>
+<body>
+<div id="ui-overlay" class="panel">
+<button onclick="trainXORNetwork()">Train XOR</button>
+<button onclick="runRegression()">Regression</button>
+<button onclick="runBayesian()">Bayesian</button>
+<button onclick="runDecisionTree()">Decision Tree</button>
+<div id="ml-results"></div>
+</div>
+<script>
+let xorModel;
+
+function showResult(text){
+  document.getElementById('ml-results').textContent = text;
+}
+
+function trainXORNetwork(){
+  const data = [
+    {input:[0,0],output:[0]},
+    {input:[0,1],output:[1]},
+    {input:[1,0],output:[1]},
+    {input:[1,1],output:[0]}
+  ];
+  xorModel = new ML.NeuralNetwork({layers:[2,3,1],activation:'tanh',learningRate:0.5});
+  xorModel.train(data,{epochs:1000});
+  const preds = data.map(d => xorModel.predict(d.input)[0].toFixed(2));
+  showResult('XOR predictions: ' + preds.join(', '));
+}
+
+function runRegression(){
+  const X = math.matrix([[0,1],[1,2],[2,3]]);
+  const y = [0,1,2];
+  const regression = new ML.MultivariateLinearRegression(X.toArray(), y);
+  const pred = regression.predict([3,4]);
+  showResult('Regression prediction for [3,4]: ' + pred.toFixed(2));
+}
+
+function runBayesian(){
+  const features = math.matrix([[0],[1],[2]]);
+  const labels = [0,1,1];
+  const nb = new ML.NaiveBayes({modelType:'gaussian'});
+  nb.train(features.toArray(), labels);
+  const predicted = nb.predict([[1.5]])[0];
+  showResult('Bayesian class for 1.5: ' + predicted);
+}
+
+function runDecisionTree(){
+  const X = math.matrix([[0],[1],[2]]);
+  const y = [0,1,1];
+  const clf = new ML.DecisionTreeClassifier({gainFunction:'gini',maxDepth:3});
+  clf.train(X.toArray(), y);
+  const label = clf.predict([[1.5]])[0];
+  showResult('Tree class for 1.5: ' + label);
+}
+</script>
+</body>
+</html>
